@@ -40,9 +40,20 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 10000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+
+    const load = async () => {
+      if (cancelled) return;
+      await fetchConversations();
+    };
+
+    load();
+    // Slower polling reduces duplicate API load
+    const interval = setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [activeUserId]);
 
   const handleSelect = (userId: string) => {

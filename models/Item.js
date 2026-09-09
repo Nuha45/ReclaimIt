@@ -55,9 +55,47 @@ const itemSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Date lost/found is required'],
     },
+    color: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Color cannot exceed 50 characters'],
+    },
+    brand: {
+      type: String,
+      trim: true,
+      maxlength: [80, 'Brand cannot exceed 80 characters'],
+    },
+    size: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Size cannot exceed 50 characters'],
+    },
+    condition: {
+      type: String,
+      enum: ['new', 'excellent', 'good', 'fair', 'poor'],
+      default: 'good',
+    },
+    uniqueMarks: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Unique marks cannot exceed 1000 characters'],
+      default: '',
+    },
     images: [
       {
         type: String,
+      },
+    ],
+    photos: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ItemPhoto',
+      },
+    ],
+    verificationQuestions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'VerificationQuestion',
       },
     ],
     keywords: [
@@ -85,14 +123,27 @@ const itemSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    claimCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );
 
-itemSchema.index({ title: 'text', description: 'text', keywords: 'text' });
+itemSchema.index({
+  title: 'text',
+  description: 'text',
+  keywords: 'text',
+  color: 'text',
+  brand: 'text',
+  uniqueMarks: 'text',
+});
 itemSchema.index({ category: 1, type: 1, status: 1 });
 itemSchema.index({ 'location.name': 1 });
 itemSchema.index({ dateLostFound: -1 });
 itemSchema.index({ postedBy: 1 });
+itemSchema.index({ brand: 1, color: 1, size: 1, condition: 1 });
 
 module.exports = mongoose.model('Item', itemSchema);

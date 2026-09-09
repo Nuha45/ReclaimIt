@@ -11,6 +11,7 @@ import SignupPage from './pages/SignupPage';
 import BrowsePage from './pages/BrowsePage';
 import PostItemPage from './pages/PostItemPage';
 import ItemDetailPage from './pages/ItemDetailPage';
+import EditItemPage from './pages/EditItemPage';
 import ChatPage from './pages/ChatPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
 
+        <Route path="items/:id/edit" element={<ProtectedRoute><EditItemPage /></ProtectedRoute>} />
         <Route path="post" element={<ProtectedRoute><PostItemPage /></ProtectedRoute>} />
         <Route path="chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

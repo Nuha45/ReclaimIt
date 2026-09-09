@@ -2,12 +2,14 @@ import axios, { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
 import type {
   AdminStats,
+  ClaimRequest,
   Conversation,
   Item,
   ItemFilters,
   Message,
   Notification,
   Pagination,
+  SearchHistoryEntry,
   User,
   Violation,
 } from '../types';
@@ -16,7 +18,20 @@ import { API_BASE } from './constants';
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 20000,
 });
+
+// Avoid spamming the same toast repeatedly (e.g. polling 429s)
+let lastToastAt = 0;
+let lastToastMessage = '';
+
+function showErrorToast(message: string) {
+  const now = Date.now();
+  if (message === lastToastMessage && now - lastToastAt < 4000) return;
+  lastToastMessage = message;
+  lastToastAt = now;
+  toast.error(message);
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -29,16 +44,22 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (error: AxiosError<{ message?: string }>) => {
+    const status = error.response?.status;
     const message = error.response?.data?.message || error.message || 'Something went wrong';
+    const silent = Boolean(error.config?.headers?.['X-Silent-Error']);
 
-    if (error.response?.status === 401) {
+    if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/signup')) {
         window.location.href = '/login';
       }
-    } else if (error.response?.status !== 404) {
-      toast.error(message);
+    } else if (status === 429) {
+      if (!silent) {
+        showErrorToast('Too many requests. Please wait a moment and try again.');
+      }
+    } else if (status !== 404 && !silent) {
+      showErrorToast(message);
     }
 
     return Promise.reject(error);
@@ -47,6 +68,9 @@ api.interceptors.response.use(
 
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    if (error.response?.status === 429) {
+      return 'Too many requests. Please wait a moment and try again.';
+    }
     return error.response?.data?.message || error.message;
   }
   if (error instanceof Error) return error.message;
@@ -62,6 +86,15 @@ export const authApi = {
   getMe: () => api.get<{ success: boolean; user: User }>('/auth/me'),
   updateProfile: (data: { name?: string; studentId?: string; avatar?: string }) =>
     api.put<{ success: boolean; user: User }>('/auth/profile', data),
+  getSavedItems: () => api.get<{ success: boolean; items: Item[] }>('/auth/saved-items'),
+  toggleSavedItem: (itemId: string) =>
+    api.post<{ success: boolean; isSaved: boolean; items: Item[] }>('/auth/saved-items/toggle', { itemId }),
+  getSearchHistory: () =>
+    api.get<{ success: boolean; searches: SearchHistoryEntry[] }>('/auth/search-history'),
+  saveSearch: (data: { query: string; filters?: Record<string, unknown> }) =>
+    api.post<{ success: boolean; searches: SearchHistoryEntry[] }>('/auth/search-history', data),
+  addReview: (data: { userId: string; score: number; review?: string; claimRequestId?: string }) =>
+    api.post<{ success: boolean; user: User }>('/auth/reviews', data),
   getNotifications: (params?: { page?: number; unreadOnly?: boolean }) =>
     api.get<{ success: boolean; notifications: Notification[]; unreadCount: number; pagination: Pagination }>(
       '/auth/notifications',
@@ -77,7 +110,14 @@ export const authApi = {
 export const itemsApi = {
   getAll: (params?: ItemFilters) =>
     api.get<{ success: boolean; items: Item[]; pagination: Pagination }>('/items', { params }),
-  getById: (id: string) => api.get<{ success: boolean; item: Item }>(`/items/${id}`),
+  getById: (id: string) =>
+    api.get<{
+      success: boolean;
+      item: Item;
+      claimRequests?: ClaimRequest[];
+      pendingClaims?: number;
+      myClaim?: ClaimRequest | null;
+    }>(`/items/${id}`),
   getMyItems: () => api.get<{ success: boolean; items: Item[] }>('/items/my'),
   getMatches: (id: string, limit = 10) =>
     api.get<{ success: boolean; matches: Item[] }>(`/items/${id}/matches`, { params: { limit } }),
@@ -89,9 +129,23 @@ export const itemsApi = {
     api.put<{ success: boolean; item: Item }>(`/items/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  addPhotos: (id: string, formData: FormData) =>
+    api.post<{ success: boolean; item: Item }>(`/items/${id}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   delete: (id: string) => api.delete<{ success: boolean; message: string }>(`/items/${id}`),
-  claim: (id: string) => api.post<{ success: boolean; item: Item }>(`/items/${id}/claim`),
+  claim: (
+    id: string,
+    data: { verificationAnswers: { questionId: string; answer: string }[]; claimerMessage?: string }
+  ) => api.post<{ success: boolean; item: Item; claimRequest: ClaimRequest }>(`/items/${id}/claim`, data),
   resolve: (id: string) => api.post<{ success: boolean; item: Item }>(`/items/${id}/resolve`),
+};
+
+export const claimsApi = {
+  getAll: () => api.get<{ success: boolean; claims: ClaimRequest[] }>('/claims'),
+  getForItem: (itemId: string) => api.get<{ success: boolean; claims: ClaimRequest[] }>(`/claims/item/${itemId}`),
+  review: (id: string, data: { status: 'accepted' | 'rejected' | 'completed'; ownerNotes?: string }) =>
+    api.put<{ success: boolean; claim: ClaimRequest }>(`/claims/${id}/review`, data),
 };
 
 // Messages
@@ -99,12 +153,18 @@ export const messagesApi = {
   send: (data: { receiverId: string; content: string; itemId?: string }) =>
     api.post<{ success: boolean; message: Message }>('/messages', data),
   getConversations: () =>
-    api.get<{ success: boolean; conversations: Conversation[] }>('/messages/conversations'),
+    api.get<{ success: boolean; conversations: Conversation[] }>('/messages/conversations', {
+      headers: { 'X-Silent-Error': '1' },
+    }),
   getMessages: (userId: string, page = 1) =>
     api.get<{ success: boolean; messages: Message[]; pagination: Pagination }>(`/messages/${userId}`, {
       params: { page },
+      headers: { 'X-Silent-Error': '1' },
     }),
-  getUnreadCount: () => api.get<{ success: boolean; unreadCount: number }>('/messages/unread'),
+  getUnreadCount: () =>
+    api.get<{ success: boolean; unreadCount: number }>('/messages/unread', {
+      headers: { 'X-Silent-Error': '1' },
+    }),
   markAsRead: (id: string) =>
     api.put<{ success: boolean; message: Message }>(`/messages/${id}/read`),
 };

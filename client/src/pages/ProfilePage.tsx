@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Package, Settings, Bell, Trash2 } from 'lucide-react';
-import { authApi, itemsApi, getErrorMessage } from '../lib/api';
+import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox } from 'lucide-react';
+import { authApi, claimsApi, itemsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import type { Item, Notification } from '../types';
-import { getInitials, formatRelativeTime, capitalize } from '../lib/utils';
+import type { ClaimRequest, Item, Notification, SearchHistoryEntry } from '../types';
+import { getInitials, formatRelativeTime, capitalize, getDisplayStatus } from '../lib/utils';
 import { STATUS_COLORS, TYPE_COLORS } from '../lib/constants';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -23,12 +23,15 @@ const profileSchema = z.object({
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
-type Tab = 'items' | 'settings' | 'notifications';
+type Tab = 'items' | 'claims' | 'saved' | 'searches' | 'settings' | 'notifications';
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
   const [tab, setTab] = useState<Tab>('items');
   const [myItems, setMyItems] = useState<Item[]>([]);
+  const [claims, setClaims] = useState<ClaimRequest[]>([]);
+  const [savedItems, setSavedItems] = useState<Item[]>([]);
+  const [searches, setSearches] = useState<SearchHistoryEntry[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,10 +44,16 @@ export default function ProfilePage() {
   useEffect(() => {
     Promise.all([
       itemsApi.getMyItems(),
+      claimsApi.getAll(),
+      authApi.getSavedItems(),
+      authApi.getSearchHistory(),
       authApi.getNotifications(),
     ])
-      .then(([itemsRes, notifRes]) => {
+      .then(([itemsRes, claimsRes, savedRes, searchRes, notifRes]) => {
         setMyItems(itemsRes.data.items);
+        setClaims(claimsRes.data.claims);
+        setSavedItems(savedRes.data.items);
+        setSearches(searchRes.data.searches);
         setNotifications(notifRes.data.notifications);
       })
       .finally(() => setLoading(false));
@@ -74,9 +83,23 @@ export default function ProfilePage() {
     }
   };
 
+  const openNotification = async (n: Notification) => {
+    if (!n.isRead) {
+      try {
+        await authApi.markNotificationRead(n._id);
+        setNotifications((list) => list.map((x) => (x._id === n._id ? { ...x, isRead: true } : x)));
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
   const tabs = [
     { id: 'items' as Tab, label: 'My Items', icon: Package },
-    { id: 'notifications' as Tab, label: 'Notifications', icon: Bell },
+    { id: 'claims' as Tab, label: 'Claims', icon: Inbox },
+    { id: 'saved' as Tab, label: 'Saved', icon: Bookmark },
+    { id: 'searches' as Tab, label: 'Searches', icon: History },
+    { id: 'notifications' as Tab, label: 'Alerts', icon: Bell },
     { id: 'settings' as Tab, label: 'Settings', icon: Settings },
   ];
 
@@ -87,18 +110,18 @@ export default function ProfilePage() {
           {getInitials(user?.name || 'U')}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">{user?.name}</h1>
+          <h1 className="font-display text-2xl font-semibold text-text-primary">{user?.name}</h1>
           <p className="text-text-secondary">{user?.email}</p>
           {user?.studentId && <p className="text-xs text-text-muted mt-0.5">ID: {user.studentId}</p>}
         </div>
       </div>
 
-      <div className="flex gap-1 mb-8 bg-surface-raised border border-border-subtle rounded-xl p-1">
+      <div className="flex gap-1 mb-8 bg-surface-raised border border-border-subtle rounded-xl p-1 overflow-x-auto">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+            className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
               tab === id ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -122,36 +145,128 @@ export default function ProfilePage() {
           />
         ) : (
           <div className="space-y-4">
-            {myItems.map((item) => (
+            {myItems.map((item) => {
+              const status = getDisplayStatus(item, item.pendingClaims || 0);
+              return (
+                <Card key={item._id} className="!p-4 flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-2 mb-1">
+                      <Badge className={TYPE_COLORS[item.type]}>{capitalize(item.type)}</Badge>
+                      <Badge className={STATUS_COLORS[status.key] || STATUS_COLORS.active}>{status.label}</Badge>
+                    </div>
+                    <Link to={`/items/${item._id}`} className="font-medium text-text-primary hover:text-accent transition-colors">
+                      {item.title}
+                    </Link>
+                    <p className="text-sm text-text-muted mt-0.5">{item.location.name}</p>
+                  </div>
+                  <Link to={`/items/${item._id}/edit`}>
+                    <Button variant="ghost" size="sm"><Pencil className="w-4 h-4" /></Button>
+                  </Link>
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item._id)}>
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                  </Button>
+                </Card>
+              );
+            })}
+          </div>
+        )
+      ) : tab === 'claims' ? (
+        claims.length === 0 ? (
+          <EmptyState
+            icon={Inbox}
+            title="No claims yet"
+            description="When you send or receive a claim request, it shows up here. Accept/reject happens on the item page; chat opens after accept."
+          />
+        ) : (
+          <div className="space-y-3">
+            {claims.map((claim) => {
+              const itemId = typeof claim.item === 'object' ? claim.item._id : (claim.item as unknown as string);
+              const itemTitle = typeof claim.item === 'object' ? claim.item.title : 'Item';
+              const isOwner = claim.owner._id === user?._id;
+              return (
+                <Card key={claim._id} className="!p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-text-muted mb-1">{isOwner ? 'Incoming claim' : 'Your claim'}</p>
+                      <Link to={`/items/${itemId}`} className="font-medium text-text-primary hover:text-accent">
+                        {itemTitle}
+                      </Link>
+                      <p className="text-sm text-text-secondary mt-1">
+                        {isOwner ? `From ${claim.claimer.name}` : `To ${claim.owner.name}`}
+                      </p>
+                    </div>
+                    <Badge className={STATUS_COLORS[claim.status]}>{capitalize(claim.status)}</Badge>
+                  </div>
+                  <p className="text-xs text-text-muted mt-3">
+                    {claim.status === 'pending' && isOwner && 'Open the item to accept or reject.'}
+                    {claim.status === 'pending' && !isOwner && 'Waiting on the poster — watch the notification bell.'}
+                    {claim.status === 'accepted' && (
+                      <Link className="text-accent" to={`/chat?user=${isOwner ? claim.claimer._id : claim.owner._id}&item=${itemId}`}>
+                        Open chat to coordinate return →
+                      </Link>
+                    )}
+                    {claim.status === 'rejected' && 'This request was declined.'}
+                    {claim.status === 'completed' && 'Return marked complete.'}
+                  </p>
+                </Card>
+              );
+            })}
+          </div>
+        )
+      ) : tab === 'saved' ? (
+        savedItems.length === 0 ? (
+          <EmptyState icon={Bookmark} title="No saved items" description="Save interesting items to revisit them later." />
+        ) : (
+          <div className="space-y-4">
+            {savedItems.map((item) => (
               <Card key={item._id} className="!p-4 flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap gap-2 mb-1">
-                    <Badge className={TYPE_COLORS[item.type]}>{capitalize(item.type)}</Badge>
-                    <Badge className={STATUS_COLORS[item.status]}>{capitalize(item.status)}</Badge>
-                  </div>
                   <Link to={`/items/${item._id}`} className="font-medium text-text-primary hover:text-accent transition-colors">
                     {item.title}
                   </Link>
                   <p className="text-sm text-text-muted mt-0.5">{item.location.name}</p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item._id)}>
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                </Button>
+                <Badge className={TYPE_COLORS[item.type]}>{capitalize(item.type)}</Badge>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : tab === 'searches' ? (
+        searches.length === 0 ? (
+          <EmptyState icon={History} title="No search history" description="Your recent filtered searches will appear here." />
+        ) : (
+          <div className="space-y-3">
+            {searches.map((entry, index) => (
+              <Card key={`${entry.query}-${index}`} className="!p-4">
+                <p className="font-medium text-text-primary text-sm">{entry.query || 'Filtered search'}</p>
+                <p className="text-xs text-text-muted mt-2">{formatRelativeTime(entry.createdAt)}</p>
               </Card>
             ))}
           </div>
         )
       ) : tab === 'notifications' ? (
         notifications.length === 0 ? (
-          <EmptyState icon={Bell} title="No notifications" description="You're all caught up!" />
+          <EmptyState icon={Bell} title="No notifications" description="Claim requests, accepts, rejects, and matches show up here and in the nav bell." />
         ) : (
           <div className="space-y-3">
             {notifications.map((n) => (
-              <Card key={n._id} className={`!p-4 ${!n.isRead ? 'border-accent/30' : ''}`}>
-                <p className="font-medium text-text-primary text-sm">{n.title}</p>
-                <p className="text-sm text-text-secondary mt-1">{n.message}</p>
-                <p className="text-xs text-text-muted mt-2">{formatRelativeTime(n.createdAt)}</p>
-              </Card>
+              <Link
+                key={n._id}
+                to={
+                  n.type === 'new_message' || n.type === 'claim_verified'
+                    ? `/chat${n.relatedUser?._id ? `?user=${n.relatedUser._id}${n.relatedItem?._id ? `&item=${n.relatedItem._id}` : ''}` : ''}`
+                    : n.relatedItem?._id
+                      ? `/items/${n.relatedItem._id}`
+                      : '/profile'
+                }
+                onClick={() => openNotification(n)}
+              >
+                <Card className={`!p-4 ${!n.isRead ? 'border-accent/30' : ''}`}>
+                  <p className="font-medium text-text-primary text-sm">{n.title}</p>
+                  <p className="text-sm text-text-secondary mt-1">{n.message}</p>
+                  <p className="text-xs text-text-muted mt-2">{formatRelativeTime(n.createdAt)}</p>
+                </Card>
+              </Link>
             ))}
           </div>
         )

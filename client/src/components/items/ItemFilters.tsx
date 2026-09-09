@@ -1,6 +1,6 @@
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import type { ItemFilters } from '../../types';
-import { CATEGORIES } from '../../lib/constants';
+import { CATEGORIES, ITEM_CONDITIONS } from '../../lib/constants';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
@@ -60,6 +60,24 @@ export default function ItemFiltersBar({ filters, onChange, onReset }: ItemFilte
           onChange={(e) => onChange({ ...filters, location: e.target.value, page: 1 })}
         />
 
+        <Input
+          placeholder="Color..."
+          value={filters.color || ''}
+          onChange={(e) => onChange({ ...filters, color: e.target.value, page: 1 })}
+        />
+
+        <Input
+          placeholder="Brand..."
+          value={filters.brand || ''}
+          onChange={(e) => onChange({ ...filters, brand: e.target.value, page: 1 })}
+        />
+
+        <Input
+          placeholder="Size..."
+          value={filters.size || ''}
+          onChange={(e) => onChange({ ...filters, size: e.target.value, page: 1 })}
+        />
+
         <Select
           placeholder="All statuses"
           options={[
@@ -69,6 +87,13 @@ export default function ItemFiltersBar({ filters, onChange, onReset }: ItemFilte
           ]}
           value={filters.status || ''}
           onChange={(e) => onChange({ ...filters, status: e.target.value as ItemFilters['status'], page: 1 })}
+        />
+
+        <Select
+          placeholder="Any condition"
+          options={ITEM_CONDITIONS}
+          value={filters.condition || ''}
+          onChange={(e) => onChange({ ...filters, condition: e.target.value, page: 1 })}
         />
 
         <Input

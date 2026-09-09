@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { messagesApi } from '../../lib/api';
 import { cn, getInitials } from '../../lib/utils';
 import Button from '../ui/Button';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -23,13 +24,29 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    messagesApi.getUnreadCount().then(({ data }) => setUnreadCount(data.unreadCount)).catch(() => {});
-    const interval = setInterval(() => {
-      messagesApi.getUnreadCount().then(({ data }) => setUnreadCount(data.unreadCount)).catch(() => {});
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, location.pathname]);
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUnread = () => {
+      messagesApi
+        .getUnreadCount()
+        .then(({ data }) => {
+          if (!cancelled) setUnreadCount(data.unreadCount);
+        })
+        .catch(() => {});
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isAuthenticated]);
 
   const navLinks = [
     { to: '/browse', label: 'Browse', icon: Search },
@@ -46,14 +63,14 @@ export default function Navbar() {
   const isActive = (path: string) => location.pathname.startsWith(path);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface/85 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2.5 group">
             <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center group-hover:bg-accent/25 transition-colors">
               <Package className="w-5 h-5 text-accent" />
             </div>
-            <span className="text-xl font-bold text-text-primary">
+            <span className="font-display text-xl font-bold text-text-primary tracking-tight">
               Reclaim<span className="text-accent">It</span>
             </span>
           </Link>
@@ -81,9 +98,10 @@ export default function Navbar() {
             ))}
           </nav>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             {isAuthenticated ? (
               <>
+                <NotificationBell />
                 <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-overlay border border-border-subtle">
                   <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
                     {getInitials(user?.name || 'U')}
@@ -119,6 +137,11 @@ export default function Navbar() {
 
       {mobileOpen && (
         <div className="md:hidden border-t border-border-subtle bg-surface-raised px-4 py-4 space-y-1">
+          {isAuthenticated && (
+            <div className="flex justify-end pb-2">
+              <NotificationBell />
+            </div>
+          )}
           {navLinks.map(({ to, label, icon: Icon, badge }) => (
             <Link
               key={to}

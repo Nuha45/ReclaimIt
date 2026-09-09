@@ -42,5 +42,31 @@ export function getInitials(name: string) {
 }
 
 export function capitalize(str: string) {
+  if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).replace(/_/g, ' ');
+}
+
+/** Claimed only after founder accepts — pending requests stay Available / Claim pending. */
+export function getDisplayStatus(
+  item: { status: string; claimedBy?: unknown; pendingClaims?: number },
+  pendingClaims = 0
+) {
+  const pending = pendingClaims || item.pendingClaims || 0;
+  if (item.status === 'resolved') return { label: 'Returned', key: 'resolved' };
+  if (item.status === 'removed') return { label: 'Removed', key: 'removed' };
+  // Only "Claimed" after the founder accepts (claimedBy set)
+  if (item.claimedBy) return { label: 'Claimed', key: 'claimed' };
+  if (item.status === 'claimed' && !item.claimedBy) {
+    if (pending > 0) return { label: 'Claim pending', key: 'pending' };
+    return { label: 'Available', key: 'active' };
+  }
+  if (pending > 0) return { label: 'Claim pending', key: 'pending' };
+  return { label: 'Available', key: 'active' };
+}
+
+export function getMatchLabel(score?: number) {
+  if (score === undefined || score === null) return null;
+  if (score >= 75) return { tier: 'Strong', className: 'bg-accent/20 text-accent border-accent/40' };
+  if (score >= 55) return { tier: 'Likely', className: 'bg-blue-500/15 text-blue-300 border-blue-500/30' };
+  return { tier: 'Possible', className: 'bg-surface-overlay text-text-secondary border-border' };
 }

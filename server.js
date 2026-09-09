@@ -9,6 +9,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const itemRoutes = require('./routes/items');
+const claimRoutes = require('./routes/claims');
 const messageRoutes = require('./routes/messages');
 const adminRoutes = require('./routes/admin');
 const violationRoutes = require('./routes/violations');
@@ -28,8 +29,22 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin(origin, callback) {
+    // Allow non-browser tools (no Origin) and local frontend ports
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
 }));
 
@@ -40,15 +55,24 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+const isDev = process.env.NODE_ENV !== 'production';
+
+// Development: effectively disable rate limiting so polling/chat won't lock you out.
+// Production: keep a reasonable safety limit.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: isDev ? 10000 : 300,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
+  skip: () => isDev && process.env.DISABLE_RATE_LIMIT === 'true',
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { success: false, message: 'Too many auth attempts, please try again later.' },
 });
 
@@ -69,6 +93,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/claims', claimRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/violations', violationRoutes);

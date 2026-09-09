@@ -1,75 +1,71 @@
 import { Link } from 'react-router-dom';
-import { Search, PlusCircle, Shield, Zap, Users, ArrowRight } from 'lucide-react';
+import { Search, PlusCircle, Shield, Zap, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function HomePage() {
   const features = [
-    { icon: Search, title: 'Smart Search', desc: 'Filter by category, location, date, and status to find items fast.' },
-    { icon: Zap, title: 'Smart Matching', desc: 'AI-powered suggestions connect lost items with found reports automatically.' },
-    { icon: Users, title: 'Direct Messaging', desc: 'Chat securely with other students to verify and reclaim belongings.' },
-    { icon: Shield, title: 'Campus Safe', desc: 'Verified student accounts with moderation and reporting tools.' },
+    { icon: Search, title: 'Campus browse', desc: 'Filter by color, brand, floor, and date with compact photo cards.' },
+    { icon: Zap, title: 'Honest matching', desc: 'Suggestions need real signals — brand, marks, location — not generic titles.' },
+    { icon: CheckCircle2, title: 'Verified claims', desc: 'Requests stay pending until the poster accepts. No premature “Claimed”.' },
+    { icon: MessageCircle, title: 'Secure chat', desc: 'Accept a claim and chat opens automatically to coordinate the handoff.' },
+    { icon: Shield, title: 'Campus safe', desc: 'Student accounts, reporting, and moderation keep the feed trustworthy.' },
   ];
 
   return (
     <div>
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-medium mb-6">
-              Campus Lost & Found Platform
-            </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-text-primary leading-tight mb-6">
-              Lost something?{' '}
-              <span className="text-accent">ReclaimIt.</span>
-            </h1>
-            <p className="text-lg text-text-secondary mb-10 max-w-xl leading-relaxed">
-              The premium lost & found platform built for college campuses. Post items, discover matches,
-              and reunite with your belongings — all in one place.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link to="/browse">
-                <Button size="lg">
-                  Browse Items <ArrowRight className="w-5 h-5" />
-                </Button>
-              </Link>
-              <Link to="/post">
-                <Button variant="outline" size="lg">
-                  <PlusCircle className="w-5 h-5" /> Post an Item
-                </Button>
-              </Link>
-            </div>
+      <section className="relative overflow-hidden min-h-[78vh] flex items-center">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[720px] h-[420px] rounded-full bg-accent/10 blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-[380px] h-[280px] rounded-full bg-blue-500/10 blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.035]"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)',
+              backgroundSize: '28px 28px',
+            }}
+          />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28 w-full">
+          <p className="font-display text-accent text-sm font-semibold tracking-[0.2em] uppercase mb-5">
+            ReclaimIt
+          </p>
+          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-text-primary leading-[1.05] mb-6 max-w-3xl tracking-tight">
+            Lost on campus.<br />
+            <span className="text-accent">Found with clarity.</span>
+          </h1>
+          <p className="text-lg text-text-secondary mb-10 max-w-xl leading-relaxed">
+            Post with proof, claim with verification, and only mark Claimed when the founder says yes.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link to="/browse">
+              <Button size="lg">
+                Browse finds <ArrowRight className="w-5 h-5" />
+              </Button>
+            </Link>
+            <Link to="/post">
+              <Button variant="outline" size="lg">
+                <PlusCircle className="w-5 h-5" /> Post an item
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-2xl font-bold text-text-primary text-center mb-12">Everything you need</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <h2 className="font-display text-2xl font-semibold text-text-primary mb-8">Built for real handoffs</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {features.map(({ icon: Icon, title, desc }) => (
             <div
               key={title}
-              className="p-6 rounded-2xl bg-surface-raised border border-border-subtle hover:border-border transition-colors"
+              className="p-5 rounded-2xl bg-surface-raised/80 border border-border-subtle hover:border-accent/25 transition-colors"
             >
-              <div className="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-4">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-3">
                 <Icon className="w-5 h-5 text-accent" />
               </div>
-              <h3 className="font-semibold text-text-primary mb-2">{title}</h3>
+              <h3 className="font-display font-semibold text-text-primary mb-1.5">{title}</h3>
               <p className="text-sm text-text-secondary leading-relaxed">{desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        <div className="rounded-3xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 p-10 lg:p-16 text-center">
-          <h2 className="text-2xl lg:text-3xl font-bold text-text-primary mb-4">Ready to get started?</h2>
-          <p className="text-text-secondary mb-8 max-w-md mx-auto">
-            Join your campus community and help reunite lost items with their owners.
-          </p>
-          <Link to="/signup">
-            <Button size="lg">Create Free Account</Button>
-          </Link>
         </div>
       </section>
     </div>

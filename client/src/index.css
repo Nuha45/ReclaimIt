@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-surface: #0f1117;
-  --color-surface-raised: #161922;
-  --color-surface-overlay: #1c2030;
-  --color-border: #2a2f42;
-  --color-border-subtle: #222736;
-  --color-text-primary: #f0f2f8;
-  --color-text-secondary: #9499b0;
-  --color-text-muted: #636882;
+  --color-surface: #0c0e14;
+  --color-surface-raised: #141822;
+  --color-surface-overlay: #1a1f2e;
+  --color-border: #2a3144;
+  --color-border-subtle: #1f2535;
+  --color-text-primary: #f3f5fb;
+  --color-text-secondary: #9aa1b8;
+  --color-text-muted: #636a84;
   --color-accent: #ffb347;
   --color-accent-hover: #ffc266;
   --color-accent-muted: #ffb34733;
@@ -17,7 +17,8 @@
   --color-danger: #f87171;
   --color-lost: #f87171;
   --color-found: #34d399;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "Syne", "DM Sans", system-ui, sans-serif;
 }
 
 * {
@@ -33,8 +34,16 @@ body {
   min-height: 100vh;
   font-family: var(--font-sans);
   background-color: var(--color-surface);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 179, 71, 0.08), transparent),
+    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(80, 120, 255, 0.05), transparent);
+  background-attachment: fixed;
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 #root {

@@ -33,10 +33,21 @@ export default function ChatWindow({ participant, currentUserId, itemId }: ChatW
   };
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 4000);
-    return () => clearInterval(interval);
+
+    const load = async () => {
+      if (cancelled) return;
+      await fetchMessages();
+    };
+
+    load();
+    // Poll every 15s instead of 4s to avoid rate-limit storms
+    const interval = setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [participant._id]);
 
   useEffect(() => {

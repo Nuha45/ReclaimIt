@@ -9,6 +9,9 @@ export interface User {
   studentId?: string | null;
   isBanned?: boolean;
   violationCount?: number;
+  averageRating?: number;
+  savedItems?: Item[];
+  recentSearches?: SearchHistoryEntry[];
   createdAt?: string;
 }
 
@@ -40,15 +43,69 @@ export interface Item {
   status: ItemStatus;
   location: ItemLocation;
   dateLostFound: string;
+  color?: string;
+  brand?: string;
+  size?: string;
+  condition?: 'new' | 'excellent' | 'good' | 'fair' | 'poor';
+  uniqueMarks?: string;
   images: string[];
+  photos?: ItemPhoto[];
+  verificationQuestions?: VerificationQuestion[];
   keywords?: string[];
   postedBy: User;
   claimedBy?: User | null;
   isFlagged?: boolean;
   flagCount?: number;
+  claimCount?: number;
+  pendingClaims?: number;
   matchScore?: number;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface ItemPhoto {
+  _id: string;
+  item: string;
+  url: string;
+  caption?: string;
+  isPrimary?: boolean;
+}
+
+export interface VerificationQuestion {
+  _id: string;
+  item?: string;
+  question: string;
+  isSensitive?: boolean;
+}
+
+export interface ClaimAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+  isCorrect?: boolean;
+}
+
+export type ClaimStatus = 'pending' | 'accepted' | 'rejected' | 'completed';
+
+export interface ClaimRequest {
+  _id: string;
+  item: Item;
+  owner: User;
+  claimer: User;
+  status: ClaimStatus;
+  verificationAnswers: ClaimAnswer[];
+  verificationScore: number;
+  claimerMessage?: string;
+  ownerNotes?: string;
+  reviewedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface SearchHistoryEntry {
+  query: string;
+  filters?: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface Message {
@@ -122,6 +179,10 @@ export interface ItemFilters {
   type?: ItemType | '';
   status?: ItemStatus | '';
   location?: string;
+  color?: string;
+  brand?: string;
+  size?: string;
+  condition?: string;
   startDate?: string;
   endDate?: string;
   page?: number;

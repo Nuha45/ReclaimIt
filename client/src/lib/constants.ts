@@ -28,11 +28,23 @@ export const STATUS_LABELS: Record<string, string> = {
   removed: 'Removed',
 };
 
+export const ITEM_CONDITIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'excellent', label: 'Excellent' },
+  { value: 'good', label: 'Good' },
+  { value: 'fair', label: 'Fair' },
+  { value: 'poor', label: 'Poor' },
+];
+
 export const STATUS_COLORS: Record<string, string> = {
   active: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
   claimed: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
   resolved: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
   removed: 'bg-red-500/15 text-red-400 border-red-500/30',
+  pending: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  accepted: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  rejected: 'bg-red-500/15 text-red-400 border-red-500/30',
+  completed: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
 };
 
 export const TYPE_COLORS: Record<string, string> = {

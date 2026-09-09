@@ -47,6 +47,34 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    savedItems: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Item',
+      },
+    ],
+    recentSearches: [
+      {
+        query: { type: String, trim: true, maxlength: 120 },
+        filters: { type: Object, default: {} },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    ratingsReceived: [
+      {
+        by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        score: { type: Number, min: 1, max: 5, required: true },
+        review: { type: String, trim: true, maxlength: 500 },
+        claimRequest: { type: mongoose.Schema.Types.ObjectId, ref: 'ClaimRequest' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
   },
   {
     timestamps: true,
