@@ -119,33 +119,12 @@ exports.saveSearch = asyncHandler(async (req, res) => {
 });
 
 exports.addReview = asyncHandler(async (req, res) => {
-  const { userId, score, review = '', claimRequestId } = req.body;
-  if (!userId || !score) throw new AppError('User and score are required', 400);
-  if (userId === req.user._id.toString()) throw new AppError('You cannot review yourself', 400);
-
-  const targetUser = await User.findById(userId);
-  if (!targetUser) throw new AppError('User not found', 404);
-
-  const existing = targetUser.ratingsReceived.find(
-    (rating) =>
-      rating.by.toString() === req.user._id.toString() &&
-      String(rating.claimRequest || '') === String(claimRequestId || '')
-  );
-
-  if (existing) throw new AppError('You have already reviewed this user for this claim', 400);
-
-  targetUser.ratingsReceived.push({
-    by: req.user._id,
-    score,
-    review,
-    claimRequest: claimRequestId || null,
-  });
-
-  const total = targetUser.ratingsReceived.reduce((sum, rating) => sum + rating.score, 0);
-  targetUser.averageRating = Number((total / targetUser.ratingsReceived.length).toFixed(1));
-  await targetUser.save();
-
-  res.status(201).json({ success: true, user: targetUser });
+  // Back-compat wrapper — prefer POST /api/reviews
+  req.body.revieweeId = req.body.revieweeId || req.body.userId;
+  req.body.rating = req.body.rating || req.body.score;
+  req.body.comment = req.body.comment ?? req.body.review ?? '';
+  const reviewController = require('./reviewController');
+  return reviewController.createReview(req, res);
 });
 
 exports.getNotifications = asyncHandler(async (req, res) => {

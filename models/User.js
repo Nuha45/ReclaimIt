@@ -75,6 +75,16 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
+    reviewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    /** True when averageRating is below 2 — surfaced to admins */
+    isRatingFlagged: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

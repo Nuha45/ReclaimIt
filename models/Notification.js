@@ -18,6 +18,7 @@ const notificationSchema = new mongoose.Schema(
         'claim_rejected',
         'claim_completed',
         'item_resolved',
+        'review_received',
         'violation_warning',
         'account_banned',
         'admin_action',

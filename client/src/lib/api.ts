@@ -9,6 +9,8 @@ import type {
   Message,
   Notification,
   Pagination,
+  PendingReview,
+  Review,
   SearchHistoryEntry,
   User,
   Violation,
@@ -121,6 +123,8 @@ export const itemsApi = {
   getMyItems: () => api.get<{ success: boolean; items: Item[] }>('/items/my'),
   getMatches: (id: string, limit = 10) =>
     api.get<{ success: boolean; matches: Item[] }>(`/items/${id}/matches`, { params: { limit } }),
+  getQrUrl: (id: string) => `/api/items/${id}/qr`,
+  getFlyerUrl: (id: string) => `/api/items/${id}/flyer`,
   create: (formData: FormData) =>
     api.post<{ success: boolean; item: Item; suggestedMatches: Item[] }>('/items', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -146,6 +150,13 @@ export const claimsApi = {
   getForItem: (itemId: string) => api.get<{ success: boolean; claims: ClaimRequest[] }>(`/claims/item/${itemId}`),
   review: (id: string, data: { status: 'accepted' | 'rejected' | 'completed'; ownerNotes?: string }) =>
     api.put<{ success: boolean; claim: ClaimRequest }>(`/claims/${id}/review`, data),
+};
+
+export const reviewsApi = {
+  create: (data: { revieweeId: string; rating: number; comment?: string; claimRequestId: string }) =>
+    api.post<{ success: boolean; review: Review; reviewee: User }>('/reviews', data),
+  getPending: () => api.get<{ success: boolean; pending: PendingReview[] }>('/reviews/pending'),
+  getForUser: (userId: string) => api.get<{ success: boolean; reviews: Review[] }>(`/reviews/user/${userId}`),
 };
 
 // Messages
@@ -185,6 +196,7 @@ export const adminApi = {
       recentItems: Item[];
       recentViolations: Violation[];
     }>('/admin/dashboard'),
+  getStats: () => api.get<{ success: boolean; stats: AdminStats }>('/admin/stats'),
   getUsers: (params?: { page?: number; banned?: boolean }) =>
     api.get<{ success: boolean; users: User[]; pagination: Pagination }>('/admin/users', { params }),
   banUser: (id: string) => api.put<{ success: boolean; message: string }>(`/admin/users/${id}/ban`),

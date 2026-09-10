@@ -6,7 +6,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.use(protect, authorize('admin'));
 
 router.get('/dashboard', adminController.getDashboard);
-router.get('/stats', adminController.getDashboard);
+router.get('/stats', adminController.getStats);
 router.get('/items', adminController.getAllItems);
 router.delete('/items/:id', adminController.deleteItem);
 router.get('/users', adminController.getAllUsers);

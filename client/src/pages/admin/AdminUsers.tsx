@@ -89,7 +89,11 @@ export default function AdminUsers() {
                   )}
                 </div>
                 <p className="text-sm text-text-muted">{u.email}</p>
-                <p className="text-xs text-text-muted">Joined {formatDate(u.createdAt!)}</p>
+                <p className="text-xs text-text-muted">
+                  Joined {formatDate(u.createdAt!)}
+                  {u.averageRating ? ` · ★ ${u.averageRating}` : ''}
+                  {u.isRatingFlagged ? ' · LOW RATING FLAG' : ''}
+                </p>
               </div>
               <div className="flex gap-2">
                 {u.role !== 'admin' && (
@@ -102,6 +106,9 @@ export default function AdminUsers() {
                       <Button variant="danger" size="sm" loading={actionId === u._id} onClick={() => handleBan(u._id)}>
                         <ShieldBan className="w-4 h-4" /> Ban
                       </Button>
+                    )}
+                    {u.isRatingFlagged && (
+                      <Badge className="bg-red-500/15 text-red-400 border-red-500/30 self-center">Flagged</Badge>
                     )}
                     <Button variant="outline" size="sm" loading={actionId === u._id} onClick={() => handlePromote(u._id)}>
                       <Crown className="w-4 h-4" /> Promote

@@ -8,41 +8,89 @@ const { createNotification } = require('../utils/matching');
 
 const VIOLATION_BAN_THRESHOLD = 3;
 
-exports.getDashboard = asyncHandler(async (_req, res) => {
+async function buildAdminAnalytics() {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
   const [
     totalUsers,
     totalItems,
     activeItems,
+    resolvedItems,
+    claimedItems,
     pendingViolations,
+    totalViolations,
     bannedUsers,
+    flaggedUsers,
+    activeUsers,
     recentItems,
     recentViolations,
+    topCategories,
   ] = await Promise.all([
     User.countDocuments(),
-    Item.countDocuments(),
+    Item.countDocuments({ status: { $ne: 'removed' } }),
     Item.countDocuments({ status: 'active' }),
+    Item.countDocuments({ status: 'resolved' }),
+    Item.countDocuments({ status: 'claimed' }),
     Violation.countDocuments({ status: 'pending' }),
+    Violation.countDocuments(),
     User.countDocuments({ isBanned: true }),
-    Item.find().sort('-createdAt').limit(10).populate('postedBy', 'name email'),
+    User.countDocuments({ isRatingFlagged: true }),
+    User.countDocuments({ updatedAt: { $gte: thirtyDaysAgo } }),
+    Item.find({ status: { $ne: 'removed' } })
+      .sort('-createdAt')
+      .limit(10)
+      .populate('postedBy', 'name email averageRating isRatingFlagged'),
     Violation.find({ status: 'pending' })
       .sort('-createdAt')
       .limit(10)
       .populate('reportedBy reportedUser', 'name email')
       .populate('item', 'title type'),
+    Item.aggregate([
+      { $match: { status: { $ne: 'removed' } } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 8 },
+    ]),
   ]);
 
-  res.status(200).json({
-    success: true,
+  const closedOrClaimed = resolvedItems + claimedItems;
+  const successRate =
+    totalItems === 0 ? 0 : Number(((resolvedItems / totalItems) * 100).toFixed(1));
+  const recoveryRate =
+    totalItems === 0 ? 0 : Number(((closedOrClaimed / totalItems) * 100).toFixed(1));
+
+  return {
     stats: {
       totalUsers,
       totalItems,
       activeItems,
+      resolvedItems,
+      claimedItems,
       pendingViolations,
+      fraudReports: totalViolations,
       bannedUsers,
+      flaggedUsers,
+      activeUsers,
+      successRate,
+      recoveryRate,
+      topCategories: topCategories.map((row) => ({
+        category: row._id,
+        count: row.count,
+      })),
     },
     recentItems,
     recentViolations,
-  });
+  };
+}
+
+exports.getDashboard = asyncHandler(async (_req, res) => {
+  const payload = await buildAdminAnalytics();
+  res.status(200).json({ success: true, ...payload });
+});
+
+exports.getStats = asyncHandler(async (_req, res) => {
+  const { stats } = await buildAdminAnalytics();
+  res.status(200).json({ success: true, stats });
 });
 
 exports.getAllItems = asyncHandler(async (req, res) => {

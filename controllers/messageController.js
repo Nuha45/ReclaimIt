@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { asyncHandler, AppError } = require('../utils/helpers');
 const { createNotification } = require('../utils/matching');
+const { sendNewMessageEmail } = require('../utils/emailService');
 
 exports.sendMessage = asyncHandler(async (req, res) => {
   const { receiverId, content, itemId } = req.body;
@@ -40,6 +41,14 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     relatedUser: req.user._id,
     relatedItem: itemId || null,
   });
+
+  // Email the recipient when a new chat message arrives
+  sendNewMessageEmail({
+    recipient: receiver,
+    senderName: req.user.name,
+    preview: content,
+    itemId,
+  }).catch(() => {});
 
   res.status(201).json({ success: true, message: populated });
 });

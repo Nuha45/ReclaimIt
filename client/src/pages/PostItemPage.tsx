@@ -80,6 +80,9 @@ export default function PostItemPage() {
 
       const { data: res } = await itemsApi.create(formData);
       toast.success('Item posted successfully!');
+      if (data.type === 'lost') {
+        toast.success('QR flyer ready — download it from the item page to post around campus.');
+      }
       if (res.suggestedMatches?.length) {
         toast.success(`Found ${res.suggestedMatches.length} potential match(es)!`);
       }

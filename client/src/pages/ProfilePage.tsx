@@ -4,10 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox } from 'lucide-react';
-import { authApi, claimsApi, itemsApi, getErrorMessage } from '../lib/api';
+import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox, Star } from 'lucide-react';
+import { authApi, claimsApi, itemsApi, reviewsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import type { ClaimRequest, Item, Notification, SearchHistoryEntry } from '../types';
+import type { ClaimRequest, Item, Notification, PendingReview, Review, SearchHistoryEntry } from '../types';
 import { getInitials, formatRelativeTime, capitalize, getDisplayStatus } from '../lib/utils';
 import { STATUS_COLORS, TYPE_COLORS } from '../lib/constants';
 import Input from '../components/ui/Input';
@@ -16,6 +16,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
+import ReviewForm from '../components/reviews/ReviewForm';
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -23,7 +24,7 @@ const profileSchema = z.object({
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
-type Tab = 'items' | 'claims' | 'saved' | 'searches' | 'settings' | 'notifications';
+type Tab = 'items' | 'claims' | 'reviews' | 'saved' | 'searches' | 'settings' | 'notifications';
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -33,6 +34,8 @@ export default function ProfilePage() {
   const [savedItems, setSavedItems] = useState<Item[]>([]);
   const [searches, setSearches] = useState<SearchHistoryEntry[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -48,16 +51,20 @@ export default function ProfilePage() {
       authApi.getSavedItems(),
       authApi.getSearchHistory(),
       authApi.getNotifications(),
+      user?._id ? reviewsApi.getForUser(user._id) : Promise.resolve({ data: { reviews: [] } }),
+      reviewsApi.getPending().catch(() => ({ data: { pending: [] } })),
     ])
-      .then(([itemsRes, claimsRes, savedRes, searchRes, notifRes]) => {
+      .then(([itemsRes, claimsRes, savedRes, searchRes, notifRes, reviewsRes, pendingRes]) => {
         setMyItems(itemsRes.data.items);
         setClaims(claimsRes.data.claims);
         setSavedItems(savedRes.data.items);
         setSearches(searchRes.data.searches);
         setNotifications(notifRes.data.notifications);
+        setMyReviews(reviewsRes.data.reviews);
+        setPendingReviews(pendingRes.data.pending);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?._id]);
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm('Delete this item?')) return;
@@ -97,6 +104,7 @@ export default function ProfilePage() {
   const tabs = [
     { id: 'items' as Tab, label: 'My Items', icon: Package },
     { id: 'claims' as Tab, label: 'Claims', icon: Inbox },
+    { id: 'reviews' as Tab, label: 'Reviews', icon: Star },
     { id: 'saved' as Tab, label: 'Saved', icon: Bookmark },
     { id: 'searches' as Tab, label: 'Searches', icon: History },
     { id: 'notifications' as Tab, label: 'Alerts', icon: Bell },
@@ -113,6 +121,18 @@ export default function ProfilePage() {
           <h1 className="font-display text-2xl font-semibold text-text-primary">{user?.name}</h1>
           <p className="text-text-secondary">{user?.email}</p>
           {user?.studentId && <p className="text-xs text-text-muted mt-0.5">ID: {user.studentId}</p>}
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {!!user?.averageRating && (
+              <Badge className="bg-accent/15 text-accent border-accent/30">
+                <Star className="w-3 h-3 mr-1 fill-accent" />
+                {user.averageRating}
+                {user.reviewCount ? ` · ${user.reviewCount} review${user.reviewCount === 1 ? '' : 's'}` : ''}
+              </Badge>
+            )}
+            {user?.isRatingFlagged && (
+              <Badge className="bg-red-500/15 text-red-400 border-red-500/30">Low rating flag</Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -213,6 +233,47 @@ export default function ProfilePage() {
             })}
           </div>
         )
+      ) : tab === 'reviews' ? (
+        <div className="space-y-8">
+          {pendingReviews.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="font-display font-semibold text-text-primary">Pending reviews</h2>
+              {pendingReviews.map(({ claim, reviewee }) => (
+                <ReviewForm
+                  key={claim._id}
+                  claimRequestId={claim._id}
+                  reviewee={reviewee}
+                  onSubmitted={() => {
+                    setPendingReviews((list) => list.filter((entry) => entry.claim._id !== claim._id));
+                    authApi.getMe().then(({ data }) => setUser(data.user)).catch(() => {});
+                    if (user?._id) {
+                      reviewsApi.getForUser(user._id).then(({ data }) => setMyReviews(data.reviews)).catch(() => {});
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          <div className="space-y-3">
+            <h2 className="font-display font-semibold text-text-primary">Reviews about you</h2>
+            {myReviews.length === 0 ? (
+              <EmptyState icon={Star} title="No reviews yet" description="After a completed return, the other person can rate you." />
+            ) : (
+              myReviews.map((review) => (
+                <Card key={review._id} className="!p-4">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <p className="font-medium text-text-primary text-sm">{review.reviewer.name}</p>
+                    <Badge className="bg-accent/15 text-accent border-accent/30">
+                      <Star className="w-3 h-3 mr-1 fill-accent" /> {review.rating}/5
+                    </Badge>
+                  </div>
+                  {review.comment && <p className="text-sm text-text-secondary">{review.comment}</p>}
+                  <p className="text-xs text-text-muted mt-2">{formatRelativeTime(review.createdAt)}</p>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
       ) : tab === 'saved' ? (
         savedItems.length === 0 ? (
           <EmptyState icon={Bookmark} title="No saved items" description="Save interesting items to revisit them later." />

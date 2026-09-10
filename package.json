@@ -7,7 +7,12 @@
     "start": "node server.js",
     "dev": "node node_modules/nodemon/bin/nodemon.js server.js"
   },
-  "keywords": ["lost-and-found", "campus", "mern", "beacon"],
+  "keywords": [
+    "lost-and-found",
+    "campus",
+    "mern",
+    "beacon"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -21,7 +26,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.3",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

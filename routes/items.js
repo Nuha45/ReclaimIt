@@ -9,6 +9,8 @@ router.get('/my', protect, itemController.getMyItems);
 router.get('/', itemController.getItems);
 router.post('/:id/photos', protect, upload.array('images', 5), itemController.addItemPhotos);
 router.get('/:id/matches', itemController.getMatches);
+router.get('/:id/qr', itemController.getItemQr);
+router.get('/:id/flyer', itemController.getItemFlyer);
 router.get('/:id', optionalAuth, itemController.getItem);
 router.put('/:id', protect, upload.array('images', 5), itemController.updateItem);
 router.delete('/:id', protect, itemController.deleteItem);

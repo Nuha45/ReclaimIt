@@ -13,7 +13,9 @@ const claimRoutes = require('./routes/claims');
 const messageRoutes = require('./routes/messages');
 const adminRoutes = require('./routes/admin');
 const violationRoutes = require('./routes/violations');
+const reviewRoutes = require('./routes/reviews');
 const connectDB = require('./config/db');
+const { isEmailConfigured } = require('./utils/emailService');
 
 const app = express();
 
@@ -97,6 +99,7 @@ app.use('/api/claims', claimRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/violations', violationRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
@@ -137,6 +140,7 @@ const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
   const server = app.listen(PORT, () => {
     console.log(`ReclaimIt server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    console.log(`Email notifications: ${isEmailConfigured() ? 'enabled' : 'disabled (set EMAIL + EMAIL_PASSWORD)'}`);
   });
 
   server.on('error', (err) => {

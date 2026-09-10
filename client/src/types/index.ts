@@ -10,6 +10,8 @@ export interface User {
   isBanned?: boolean;
   violationCount?: number;
   averageRating?: number;
+  reviewCount?: number;
+  isRatingFlagged?: boolean;
   savedItems?: Item[];
   recentSearches?: SearchHistoryEntry[];
   createdAt?: string;
@@ -58,6 +60,8 @@ export interface Item {
   flagCount?: number;
   claimCount?: number;
   pendingClaims?: number;
+  /** Lost-item QR PNG path — scanning opens this item's detail page */
+  qrCodeUrl?: string | null;
   matchScore?: number;
   createdAt: string;
   updatedAt?: string;
@@ -189,10 +193,34 @@ export interface ItemFilters {
   sort?: string;
 }
 
+export interface Review {
+  _id: string;
+  rating: number;
+  comment?: string;
+  reviewer: User;
+  reviewee: User;
+  claimRequest: string | ClaimRequest;
+  item?: Item | null;
+  createdAt: string;
+}
+
+export interface PendingReview {
+  claim: ClaimRequest;
+  reviewee: User;
+}
+
 export interface AdminStats {
   totalUsers: number;
   totalItems: number;
   activeItems: number;
+  resolvedItems?: number;
+  claimedItems?: number;
   pendingViolations: number;
+  fraudReports?: number;
   bannedUsers: number;
+  flaggedUsers?: number;
+  activeUsers?: number;
+  successRate?: number;
+  recoveryRate?: number;
+  topCategories?: { category: string; count: number }[];
 }

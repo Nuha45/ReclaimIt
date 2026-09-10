@@ -5,7 +5,7 @@ import {
   ChevronLeft, Zap, Bookmark, ShieldCheck, Star, Pencil, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authApi, claimsApi, itemsApi, violationsApi, getErrorMessage } from '../lib/api';
+import { authApi, claimsApi, itemsApi, reviewsApi, violationsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item } from '../types';
 import { TYPE_COLORS, STATUS_COLORS, VIOLATION_REASONS } from '../lib/constants';
@@ -16,6 +16,8 @@ import Spinner from '../components/ui/Spinner';
 import Modal from '../components/ui/Modal';
 import Select from '../components/ui/Select';
 import ItemCard from '../components/items/ItemCard';
+import LostItemQrPanel from '../components/items/LostItemQrPanel';
+import ReviewForm from '../components/reviews/ReviewForm';
 
 export default function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,7 @@ export default function ItemDetailPage() {
   const [claimerMessage, setClaimerMessage] = useState('');
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [needsReviewClaimIds, setNeedsReviewClaimIds] = useState<Set<string>>(new Set());
 
   const refresh = async () => {
     if (!id) return;
@@ -49,8 +52,21 @@ export default function ItemDetailPage() {
     setPendingClaims(itemRes.data.pendingClaims || 0);
     setMyClaim(itemRes.data.myClaim || null);
     if (isAuthenticated) {
-      const savedRes = await authApi.getSavedItems();
+      const [savedRes, pendingReviews] = await Promise.all([
+        authApi.getSavedItems(),
+        reviewsApi.getPending().catch(() => ({ data: { pending: [] } })),
+      ]);
       setSaved(savedRes.data.items.some((savedItem) => savedItem._id === itemRes.data.item._id));
+      const ids = new Set(
+        pendingReviews.data.pending
+          .filter((entry) => {
+            const claimItem = entry.claim.item;
+            const claimItemId = typeof claimItem === 'object' ? claimItem._id : claimItem;
+            return claimItemId === id;
+          })
+          .map((entry) => entry.claim._id)
+      );
+      setNeedsReviewClaimIds(ids);
     }
   };
 
@@ -358,6 +374,8 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
+      {item.type === 'lost' && isOwner && <LostItemQrPanel item={item} />}
+
       {isOwner && (
         <section className="mt-12">
           <div className="flex items-center gap-2 mb-5">
@@ -415,10 +433,41 @@ export default function ItemDetailPage() {
                       </Button>
                     </div>
                   )}
+                  {claim.status === 'completed' && needsReviewClaimIds.has(claim._id) && (
+                    <div className="mt-4">
+                      <ReviewForm
+                        claimRequestId={claim._id}
+                        reviewee={claim.claimer}
+                        onSubmitted={() => {
+                          setNeedsReviewClaimIds((prev) => {
+                            const next = new Set(prev);
+                            next.delete(claim._id);
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </div>
+        </section>
+      )}
+
+      {!isOwner && myClaim?.status === 'completed' && needsReviewClaimIds.has(myClaim._id) && (
+        <section className="mt-10">
+          <ReviewForm
+            claimRequestId={myClaim._id}
+            reviewee={item.postedBy}
+            onSubmitted={() => {
+              setNeedsReviewClaimIds((prev) => {
+                const next = new Set(prev);
+                next.delete(myClaim._id);
+                return next;
+              });
+            }}
+          />
         </section>
       )}
 

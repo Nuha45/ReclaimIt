@@ -3,8 +3,13 @@ const ItemPhoto = require('../models/ItemPhoto');
 const VerificationQuestion = require('../models/VerificationQuestion');
 const ClaimRequest = require('../models/ClaimRequest');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { asyncHandler, AppError } = require('../utils/helpers');
 const { extractKeywords, findMatchingItems, createNotification } = require('../utils/matching');
+const { generateItemQrCode, generateItemFlyerSvg } = require('../utils/qrcode');
+const { sendClaimReceivedEmail } = require('../utils/emailService');
+const fs = require('fs');
+const path = require('path');
 
 const ITEM_POPULATE = [
   { path: 'postedBy', select: 'name email avatar studentId averageRating' },
@@ -56,6 +61,23 @@ async function attachPendingClaims(items) {
     obj.pendingClaims = map[item._id.toString()] || 0;
     return obj;
   });
+}
+
+/** Ensure lost items have a QR file on disk (lazy for older posts) */
+async function ensureItemQrCode(item) {
+  if (!item || item.type !== 'lost') return item;
+
+  const absolute = item.qrCodeUrl
+    ? path.join(process.cwd(), item.qrCodeUrl.replace(/^\//, ''))
+    : null;
+  const exists = absolute && fs.existsSync(absolute);
+
+  if (item.qrCodeUrl && exists) return item;
+
+  const qrCodeUrl = await generateItemQrCode(item._id);
+  item.qrCodeUrl = qrCodeUrl;
+  await item.save();
+  return item;
 }
 
 exports.createItem = asyncHandler(async (req, res) => {
@@ -134,6 +156,12 @@ exports.createItem = asyncHandler(async (req, res) => {
 
   item.photos = photos.map((photo) => photo._id);
   item.verificationQuestions = createdQuestions.map((question) => question._id);
+
+  // Unique QR for lost items → scanners land on the item detail page
+  if (type === 'lost') {
+    item.qrCodeUrl = await generateItemQrCode(item._id);
+  }
+
   await item.save();
 
   const populated = await hydrateItem(item._id);
@@ -238,6 +266,7 @@ exports.getItem = asyncHandler(async (req, res) => {
   }
 
   item = await healClaimStatus(item);
+  item = await ensureItemQrCode(item);
   item = await hydrateItem(req.params.id);
 
   const pendingClaims = await ClaimRequest.countDocuments({ item: item._id, status: 'pending' });
@@ -459,6 +488,15 @@ exports.claimItem = asyncHandler(async (req, res) => {
     relatedUser: item.postedBy,
   });
 
+  const owner = await User.findById(item.postedBy).select('name email');
+  if (owner?.email) {
+    sendClaimReceivedEmail({
+      owner,
+      claimerName: req.user.name,
+      item,
+    }).catch(() => {});
+  }
+
   const populated = await hydrateItem(item._id);
 
   res.status(201).json({ success: true, item: populated, claimRequest });
@@ -525,5 +563,48 @@ exports.addItemPhotos = asyncHandler(async (req, res) => {
   await item.save();
 
   res.status(201).json({ success: true, item: await hydrateItem(item._id) });
+});
+
+/** Download / regenerate QR PNG for a lost item */
+exports.getItemQr = asyncHandler(async (req, res) => {
+  let item = await Item.findById(req.params.id);
+  if (!item) throw new AppError('Item not found', 404);
+  if (item.type !== 'lost') {
+    throw new AppError('QR codes are only generated for lost items', 400);
+  }
+
+  item = await ensureItemQrCode(item);
+  const absolute = path.join(process.cwd(), item.qrCodeUrl.replace(/^\//, ''));
+
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="reclaimit-${item._id}-qr.png"`
+  );
+  res.sendFile(absolute);
+});
+
+/** Downloadable printable flyer (SVG) with embedded QR */
+exports.getItemFlyer = asyncHandler(async (req, res) => {
+  let item = await Item.findById(req.params.id).populate('postedBy', 'name');
+  if (!item) throw new AppError('Item not found', 404);
+  if (item.type !== 'lost') {
+    throw new AppError('Flyers are only available for lost items', 400);
+  }
+
+  item = await ensureItemQrCode(item);
+  const svg = await generateItemFlyerSvg(item);
+  const safeTitle = String(item.title || 'item')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+    .toLowerCase() || 'item';
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="reclaimit-flyer-${safeTitle}.svg"`
+  );
+  res.send(svg);
 });
 

@@ -128,6 +128,11 @@ const itemSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    /** Public path to QR PNG for lost items — scans open the item detail page */
+    qrCodeUrl: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
