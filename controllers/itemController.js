@@ -526,3 +526,4 @@ exports.addItemPhotos = asyncHandler(async (req, res) => {
 
   res.status(201).json({ success: true, item: await hydrateItem(item._id) });
 });
+
