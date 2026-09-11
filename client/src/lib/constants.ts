@@ -53,4 +53,10 @@ export const TYPE_COLORS: Record<string, string> = {
   found: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
 };
 
-export const API_BASE = '/api';
+/** Backend origin (no path). Empty in production builds without VITE_API_URL → same-origin relative URLs. */
+export const API_ORIGIN = import.meta.env.VITE_API_URL
+  ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
+  : '';
+
+/** Axios base URL for JSON API routes. */
+export const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';

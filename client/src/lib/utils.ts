@@ -1,3 +1,5 @@
+import { API_ORIGIN } from './constants';
+
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
@@ -29,7 +31,8 @@ export function formatRelativeTime(date: string | Date) {
 export function getImageUrl(path?: string | null) {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  return path.startsWith('/') ? path : `/${path}`;
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return API_ORIGIN ? `${API_ORIGIN}${normalized}` : normalized;
 }
 
 export function getInitials(name: string) {

@@ -123,8 +123,8 @@ export const itemsApi = {
   getMyItems: () => api.get<{ success: boolean; items: Item[] }>('/items/my'),
   getMatches: (id: string, limit = 10) =>
     api.get<{ success: boolean; matches: Item[] }>(`/items/${id}/matches`, { params: { limit } }),
-  getQrUrl: (id: string) => `/api/items/${id}/qr`,
-  getFlyerUrl: (id: string) => `/api/items/${id}/flyer`,
+  getQrUrl: (id: string) => `${API_BASE}/items/${id}/qr`,
+  getFlyerUrl: (id: string) => `${API_BASE}/items/${id}/flyer`,
   create: (formData: FormData) =>
     api.post<{ success: boolean; item: Item; suggestedMatches: Item[] }>('/items', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
