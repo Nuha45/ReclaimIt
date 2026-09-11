@@ -6,8 +6,8 @@ export default function HomePage() {
   const features = [
     { icon: Search, title: 'Campus browse', desc: 'Filter by color, brand, floor, and date with compact photo cards.' },
     { icon: Zap, title: 'Honest matching', desc: 'Suggestions need real signals — brand, marks, location — not generic titles.' },
-    { icon: CheckCircle2, title: 'Verified claims', desc: 'Requests stay pending until the poster accepts. No premature “Claimed”.' },
-    { icon: MessageCircle, title: 'Secure chat', desc: 'Accept a claim and chat opens automatically to coordinate the handoff.' },
+    { icon: CheckCircle2, title: 'Clear Lost & Found flows', desc: 'Lost items take Found Reports. Found items take Claims. Returned when reunited.' },
+    { icon: MessageCircle, title: 'Secure chat', desc: 'After a Found Report or Claim is accepted, chat opens to coordinate the handoff.' },
     { icon: Shield, title: 'Campus safe', desc: 'Student accounts, reporting, and moderation keep the feed trustworthy.' },
   ];
 
@@ -34,7 +34,7 @@ export default function HomePage() {
             <span className="text-accent">Found with clarity.</span>
           </h1>
           <p className="text-lg text-text-secondary mb-10 max-w-xl leading-relaxed">
-            Post with proof, claim with verification, and only mark Claimed when the founder says yes.
+            Post Lost or Found with proof. Finders file Found Reports; owners Claim found items. Only mark Returned when the handoff is done.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link to="/browse">

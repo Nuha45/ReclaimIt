@@ -103,7 +103,7 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'items' as Tab, label: 'My Items', icon: Package },
-    { id: 'claims' as Tab, label: 'Claims', icon: Inbox },
+    { id: 'claims' as Tab, label: 'Claims & Reports', icon: Inbox },
     { id: 'reviews' as Tab, label: 'Reviews', icon: Star },
     { id: 'saved' as Tab, label: 'Saved', icon: Bookmark },
     { id: 'searches' as Tab, label: 'Searches', icon: History },
@@ -194,20 +194,30 @@ export default function ProfilePage() {
         claims.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="No claims yet"
-            description="When you send or receive a claim request, it shows up here. Accept/reject happens on the item page; chat opens after accept."
+            title="No claims or found reports yet"
+            description="Claims on found items and found reports on lost items appear here. Accept/reject happens on the item page; chat opens after accept."
           />
         ) : (
           <div className="space-y-3">
             {claims.map((claim) => {
               const itemId = typeof claim.item === 'object' ? claim.item._id : (claim.item as unknown as string);
               const itemTitle = typeof claim.item === 'object' ? claim.item.title : 'Item';
+              const itemType = typeof claim.item === 'object' ? claim.item.type : undefined;
+              const isLost = itemType === 'lost';
               const isOwner = claim.owner._id === user?._id;
               return (
                 <Card key={claim._id} className="!p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs text-text-muted mb-1">{isOwner ? 'Incoming claim' : 'Your claim'}</p>
+                      <p className="text-xs text-text-muted mb-1">
+                        {isOwner
+                          ? isLost
+                            ? 'Incoming found report'
+                            : 'Incoming claim'
+                          : isLost
+                            ? 'Your found report'
+                            : 'Your claim'}
+                      </p>
                       <Link to={`/items/${itemId}`} className="font-medium text-text-primary hover:text-accent">
                         {itemTitle}
                       </Link>
@@ -218,7 +228,7 @@ export default function ProfilePage() {
                     <Badge className={STATUS_COLORS[claim.status]}>{capitalize(claim.status)}</Badge>
                   </div>
                   <p className="text-xs text-text-muted mt-3">
-                    {claim.status === 'pending' && isOwner && 'Open the item to accept or reject.'}
+                    {claim.status === 'pending' && isOwner && 'Open the item to accept or decline.'}
                     {claim.status === 'pending' && !isOwner && 'Waiting on the poster — watch the notification bell.'}
                     {claim.status === 'accepted' && (
                       <Link className="text-accent" to={`/chat?user=${isOwner ? claim.claimer._id : claim.owner._id}&item=${itemId}`}>

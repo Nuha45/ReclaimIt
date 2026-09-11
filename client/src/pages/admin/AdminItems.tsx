@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { ChevronLeft, Trash2 } from 'lucide-react';
 import { adminApi, getErrorMessage } from '../../lib/api';
 import type { Item } from '../../types';
-import { capitalize } from '../../lib/utils';
+import { capitalize, getDisplayStatus } from '../../lib/utils';
 import { TYPE_COLORS, STATUS_COLORS } from '../../lib/constants';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -49,12 +49,16 @@ export default function AdminItems() {
         <Spinner size="lg" className="py-20" />
       ) : (
         <div className="space-y-3">
-          {items.map((item) => (
+          {items.map((item) => {
+              const displayStatus = getDisplayStatus(item, item.pendingClaims || 0);
+              return (
             <Card key={item._id} className="!p-4 flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap gap-2 mb-1">
                   <Badge className={TYPE_COLORS[item.type]}>{capitalize(item.type)}</Badge>
-                  <Badge className={STATUS_COLORS[item.status]}>{capitalize(item.status)}</Badge>
+                  <Badge className={STATUS_COLORS[displayStatus.key] || STATUS_COLORS.active}>
+                    {displayStatus.label}
+                  </Badge>
                   {item.isFlagged && (
                     <Badge className="bg-red-500/15 text-red-400 border-red-500/30">Flagged</Badge>
                   )}
@@ -68,7 +72,8 @@ export default function AdminItems() {
                 <Trash2 className="w-4 h-4" /> Remove
               </Button>
             </Card>
-          ))}
+              );
+            })}
         </div>
       )}
     </div>

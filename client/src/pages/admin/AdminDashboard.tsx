@@ -88,7 +88,7 @@ export default function AdminDashboard() {
   const statCards = [
     { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-400' },
     { label: 'Total Items', value: stats?.totalItems ?? 0, icon: Package, color: 'text-accent' },
-    { label: 'Active Items', value: stats?.activeItems ?? 0, icon: Activity, color: 'text-emerald-400' },
+    { label: 'Open Items', value: stats?.activeItems ?? 0, icon: Activity, color: 'text-emerald-400' },
     { label: 'Active Users (30d)', value: stats?.activeUsers ?? 0, icon: TrendingUp, color: 'text-sky-400' },
     { label: 'Success Rate', value: `${stats?.successRate ?? 0}%`, icon: Percent, color: 'text-emerald-300' },
     { label: 'Fraud Reports', value: stats?.fraudReports ?? 0, icon: Flag, color: 'text-amber-400' },
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
         <Card className="!p-6 flex flex-col items-center gap-6">
           <h2 className="font-display font-semibold text-text-primary self-start w-full">Recovery metrics</h2>
           <Donut value={stats?.successRate ?? 0} label="Resolved / total items" />
-          <Donut value={stats?.recoveryRate ?? 0} label="Claimed + resolved" />
+          <Donut value={stats?.recoveryRate ?? 0} label="In progress + returned" />
         </Card>
       </div>
 

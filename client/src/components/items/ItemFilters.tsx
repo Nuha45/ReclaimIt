@@ -81,9 +81,9 @@ export default function ItemFiltersBar({ filters, onChange, onReset }: ItemFilte
         <Select
           placeholder="All statuses"
           options={[
-            { value: 'active', label: 'Active' },
-            { value: 'claimed', label: 'Claimed' },
-            { value: 'resolved', label: 'Resolved' },
+            { value: 'active', label: 'Open (Still Missing / Unclaimed)' },
+            { value: 'claimed', label: 'In progress' },
+            { value: 'resolved', label: 'Returned' },
           ]}
           value={filters.status || ''}
           onChange={(e) => onChange({ ...filters, status: e.target.value as ItemFilters['status'], page: 1 })}

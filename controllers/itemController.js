@@ -8,6 +8,10 @@ const { asyncHandler, AppError } = require('../utils/helpers');
 const { extractKeywords, findMatchingItems, createNotification } = require('../utils/matching');
 const { generateItemQrCode, generateItemFlyerSvg } = require('../utils/qrcode');
 const { sendClaimReceivedEmail } = require('../utils/emailService');
+const {
+  receivedForPoster,
+  submittedForActor,
+} = require('../utils/itemTerminology');
 const fs = require('fs');
 const path = require('path');
 
@@ -413,15 +417,30 @@ exports.claimItem = asyncHandler(async (req, res) => {
   item = await healClaimStatus(item);
 
   if (item.status !== 'active') {
-    throw new AppError('This item is no longer available for new claims', 400);
+    throw new AppError(
+      item.type === 'lost'
+        ? 'This lost item is no longer open for found reports'
+        : 'This found item is no longer open for new claims',
+      400
+    );
   }
 
   if (item.claimedBy) {
-    throw new AppError('This item has already been claimed', 400);
+    throw new AppError(
+      item.type === 'lost'
+        ? 'A finder has already been accepted for this lost item'
+        : 'This found item has already been claimed',
+      400
+    );
   }
 
   if (item.postedBy.toString() === req.user._id.toString()) {
-    throw new AppError('You cannot claim your own item', 400);
+    throw new AppError(
+      item.type === 'lost'
+        ? 'You cannot report finding your own lost item'
+        : 'You cannot claim your own found item',
+      400
+    );
   }
 
   const claimerMessage = req.body.claimerMessage || '';
@@ -434,11 +453,21 @@ exports.claimItem = asyncHandler(async (req, res) => {
   });
 
   if (existingPending) {
-    throw new AppError('You already have a pending claim request for this item', 400);
+    throw new AppError(
+      item.type === 'lost'
+        ? 'You already have a pending found report for this item'
+        : 'You already have a pending claim request for this item',
+      400
+    );
   }
 
   if (expectedQuestions.length > 0 && verificationAnswers.length < Math.min(2, expectedQuestions.length)) {
-    throw new AppError('Please answer the verification questions before claiming', 400);
+    throw new AppError(
+      item.type === 'lost'
+        ? 'Please answer the verification questions before submitting your found report'
+        : 'Please answer the verification questions before claiming',
+      400
+    );
   }
 
   const normalizedAnswers = expectedQuestions.slice(0, 3).map((question) => {
@@ -466,15 +495,18 @@ exports.claimItem = asyncHandler(async (req, res) => {
     claimerMessage,
   });
 
-  // Keep item available until the owner accepts a claim
+  // Stay open (active) until the poster accepts
   item.claimCount += 1;
   await item.save();
+
+  const toPoster = receivedForPoster({ item, actorName: req.user.name });
+  const toActor = submittedForActor({ item });
 
   await createNotification(Notification, {
     user: item.postedBy,
     type: 'claim_received',
-    title: 'New Claim Request',
-    message: `${req.user.name} requested to claim "${item.title}". Review their answers on the item page.`,
+    title: toPoster.title,
+    message: toPoster.message,
     relatedItem: item._id,
     relatedUser: req.user._id,
   });
@@ -482,8 +514,8 @@ exports.claimItem = asyncHandler(async (req, res) => {
   await createNotification(Notification, {
     user: req.user._id,
     type: 'item_claimed',
-    title: 'Claim Request Sent',
-    message: `Your claim for "${item.title}" was sent. You'll be notified when the owner responds.`,
+    title: toActor.title,
+    message: toActor.message,
     relatedItem: item._id,
     relatedUser: item.postedBy,
   });
@@ -520,8 +552,8 @@ exports.resolveItem = asyncHandler(async (req, res) => {
     await createNotification(Notification, {
       user: item.claimedBy,
       type: 'item_resolved',
-      title: 'Item Resolved',
-      message: `The item "${item.title}" has been marked as resolved.`,
+      title: 'Item returned',
+      message: `"${item.title}" has been marked as returned.`,
       relatedItem: item._id,
     });
   }

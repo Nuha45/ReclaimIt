@@ -45,11 +45,14 @@ export default function PostItemPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { condition: 'good' },
+    defaultValues: { condition: 'good', type: 'lost' },
   });
+
+  const itemType = watch('type');
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -191,7 +194,9 @@ export default function PostItemPage() {
             <div>
               <h3 className="text-sm font-medium text-text-secondary">Verification Questions</h3>
               <p className="text-xs text-text-muted mt-1">
-                Add 2-3 details only the real owner would know. These are shown during claim verification.
+                {itemType === 'lost'
+                  ? 'Optional: ask finders details that prove they have your item (shown on “I Found This Item”).'
+                  : 'Add 2–3 details only the real owner would know. Shown when someone claims this found item.'}
               </p>
             </div>
             {verificationQuestions.map((entry, index) => (

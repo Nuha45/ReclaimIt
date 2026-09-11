@@ -21,10 +21,11 @@ export const VIOLATION_REASONS: { value: ViolationReason; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+/** Filter / admin labels for DB status values (not Lost/Found type). */
 export const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  claimed: 'Claimed',
-  resolved: 'Resolved',
+  active: 'Open (Still Missing / Unclaimed)',
+  claimed: 'In progress',
+  resolved: 'Returned',
   removed: 'Removed',
 };
 

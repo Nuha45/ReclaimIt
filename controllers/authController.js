@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { asyncHandler, sendTokenResponse, AppError } = require('../utils/helpers');
+const { presentNotification } = require('../utils/itemTerminology');
 
 exports.signup = asyncHandler(async (req, res) => {
   const { name, email, password, studentId } = req.body;
@@ -147,7 +148,7 @@ exports.getNotifications = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    notifications,
+    notifications: notifications.map((n) => presentNotification(n.toObject())),
     unreadCount,
     pagination: {
       page: parseInt(page, 10),

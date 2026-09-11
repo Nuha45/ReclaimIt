@@ -1,4 +1,10 @@
 const nodemailer = require('nodemailer');
+const {
+  receivedForPoster,
+  acceptedForSubmitter,
+  rejectedForSubmitter,
+  isLostItem,
+} = require('./itemTerminology');
 
 let transporter = null;
 
@@ -88,14 +94,17 @@ async function sendEmail({ to, subject, text, html }) {
 
 async function sendClaimReceivedEmail({ owner, claimerName, item }) {
   const href = clientUrl(`/items/${item._id}`);
+  const copy = receivedForPoster({ item, actorName: claimerName });
   return sendEmail({
     to: owner.email,
-    subject: `New claim request for "${item.title}"`,
-    text: `${claimerName} requested to claim "${item.title}". Review it: ${href}`,
+    subject: copy.title.includes('Found')
+      ? `Someone Found Your Item — "${item.title}"`
+      : `New Claim Request — "${item.title}"`,
+    text: `${copy.message} ${href}`,
     html: wrapHtml({
-      title: 'New claim request',
-      body: `<strong>${claimerName}</strong> requested to claim <strong>${item.title}</strong>. Review their verification answers and accept or reject the claim.`,
-      ctaLabel: 'Review claim',
+      title: copy.title,
+      body: copy.message,
+      ctaLabel: isLostItem(item) ? 'Review found report' : 'Review claim',
       ctaHref: href,
     }),
   });
@@ -103,22 +112,17 @@ async function sendClaimReceivedEmail({ owner, claimerName, item }) {
 
 async function sendClaimDecisionEmail({ claimer, item, decision }) {
   const accepted = decision === 'accepted';
-  const href = accepted
-    ? clientUrl(`/chat`)
-    : clientUrl(`/items/${item._id}`);
+  const copy = accepted
+    ? acceptedForSubmitter({ item })
+    : rejectedForSubmitter({ item });
+  const href = accepted ? clientUrl(`/chat`) : clientUrl(`/items/${item._id}`);
   return sendEmail({
     to: claimer.email,
-    subject: accepted
-      ? `Claim accepted — "${item.title}"`
-      : `Claim update — "${item.title}"`,
-    text: accepted
-      ? `Your claim for "${item.title}" was accepted. Open Messages on ReclaimIt to coordinate.`
-      : `Your claim for "${item.title}" was rejected by the owner.`,
+    subject: `${copy.title} — "${item.title}"`,
+    text: `${copy.message} ${href}`,
     html: wrapHtml({
-      title: accepted ? 'Claim accepted' : 'Claim rejected',
-      body: accepted
-        ? `Great news — your claim for <strong>${item.title}</strong> was accepted. Open Messages to coordinate the handoff.`
-        : `Your claim for <strong>${item.title}</strong> was rejected. The item may still be available for others.`,
+      title: copy.title,
+      body: copy.message,
       ctaLabel: accepted ? 'Open Messages' : 'View item',
       ctaHref: href,
     }),
@@ -129,10 +133,10 @@ async function sendClaimCompletedEmail({ user, item, otherName }) {
   const href = clientUrl(`/items/${item._id}`);
   return sendEmail({
     to: user.email,
-    subject: `Return completed — leave a review`,
-    text: `The return for "${item.title}" is complete. Please rate ${otherName}: ${href}`,
+    subject: `Item Returned — leave a review`,
+    text: `"${item.title}" has been marked as returned. Please rate ${otherName}: ${href}`,
     html: wrapHtml({
-      title: 'Return completed',
+      title: 'Item Returned',
       body: `The handoff for <strong>${item.title}</strong> is marked complete. Please leave a short review for <strong>${otherName}</strong> to keep campus handoffs trustworthy.`,
       ctaLabel: 'Leave a review',
       ctaHref: href,

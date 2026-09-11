@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, User, MessageCircle, Flag, CheckCircle,
-  ChevronLeft, Zap, Bookmark, ShieldCheck, Star, Pencil, Clock,
+  ChevronLeft, Zap, Bookmark, ShieldCheck, Star, Pencil, Clock, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authApi, claimsApi, itemsApi, reviewsApi, violationsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item } from '../types';
 import { TYPE_COLORS, STATUS_COLORS, VIOLATION_REASONS } from '../lib/constants';
-import { formatDate, getImageUrl, capitalize, getInitials, getDisplayStatus, getMatchLabel } from '../lib/utils';
+import { formatDate, getImageUrl, capitalize, getInitials, getDisplayStatus, getMatchLabel, getItemActionCopy } from '../lib/utils';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
@@ -93,13 +93,16 @@ export default function ItemDetailPage() {
   const images = item.images?.length ? item.images : [null];
   const visibleClaimQuestions = item.verificationQuestions || [];
   const displayStatus = getDisplayStatus(item, pendingClaims);
-  const canClaim =
+  const copy = getItemActionCopy(item.type);
+  const isLost = item.type === 'lost';
+  const isResolved = item.status === 'resolved' || displayStatus.key === 'resolved';
+  const canRespond =
     !isOwner &&
     !item.claimedBy &&
-    !['claimed', 'resolved', 'removed'].includes(displayStatus.key) &&
-    !myClaim &&
-    item.status !== 'resolved' &&
-    item.status !== 'removed';
+    !isResolved &&
+    item.status !== 'removed' &&
+    displayStatus.key !== 'claimed' &&
+    !myClaim;
 
   const handleClaim = async () => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -115,7 +118,7 @@ export default function ItemDetailPage() {
       await itemsApi.claim(id!, payload);
       await refresh();
       setClaimOpen(false);
-      toast.success('Claim request sent! Watch the bell for the owner’s reply.');
+      toast.success(copy.successToast);
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -161,10 +164,10 @@ export default function ItemDetailPage() {
       const { data } = await claimsApi.review(claimId, { status });
       await refresh();
       if (status === 'accepted') {
-        toast.success('Claim accepted — opening chat');
+        toast.success(isLost ? 'Found Report Accepted — opening chat' : 'Claim Accepted — opening chat');
         navigate(`/chat?user=${data.claim.claimer._id}&item=${item._id}`);
       } else if (status === 'rejected') {
-        toast.success('Claim rejected — item stays available');
+        toast.success(isLost ? 'Found Report Rejected' : 'Claim Rejected');
       } else {
         toast.success('Marked as returned');
       }
@@ -201,7 +204,6 @@ export default function ItemDetailPage() {
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,280px)_1fr] gap-8 lg:gap-10">
-        {/* Compact gallery */}
         <div className="space-y-3 lg:sticky lg:top-24 self-start">
           <div className="h-56 sm:h-64 w-full max-w-sm rounded-2xl overflow-hidden bg-surface-overlay/80 border border-border-subtle flex items-center justify-center p-3">
             {getImageUrl(images[activeImage] as string) ? (
@@ -235,7 +237,6 @@ export default function ItemDetailPage() {
           )}
         </div>
 
-        {/* Details */}
         <div className="space-y-5">
           <div>
             <div className="flex flex-wrap gap-2 mb-3">
@@ -255,21 +256,38 @@ export default function ItemDetailPage() {
             <h1 className="font-display text-3xl font-semibold text-text-primary mb-2 tracking-tight capitalize">
               {item.title}
             </h1>
+            <p className="text-sm text-text-muted mb-2">
+              {isLost
+                ? 'Owner lost this item and is looking for it.'
+                : 'Someone found this item and is looking for its owner.'}
+            </p>
             <p className="text-text-secondary leading-relaxed text-[15px]">{item.description}</p>
           </div>
+
+          {isResolved && (
+            <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-3.5 flex gap-3">
+              <CheckCircle className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-text-primary">This item has been returned</p>
+                <p className="text-xs text-text-secondary mt-1">
+                  The lost &amp; found handoff is complete. New Found Reports or Claims are closed.
+                </p>
+              </div>
+            </div>
+          )}
 
           {myClaim && !isOwner && (
             <div className="rounded-2xl border border-accent/25 bg-accent/8 px-4 py-3.5 flex gap-3">
               <Clock className="w-5 h-5 text-accent shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-text-primary">
-                  {myClaim.status === 'pending' && 'Your claim is waiting for the poster'}
-                  {myClaim.status === 'accepted' && 'Your claim was accepted — open Messages to coordinate'}
-                  {myClaim.status === 'rejected' && 'Your claim was declined'}
-                  {myClaim.status === 'completed' && 'This return is marked complete'}
+                  {myClaim.status === 'pending' && copy.myPending}
+                  {myClaim.status === 'accepted' && copy.myAccepted}
+                  {myClaim.status === 'rejected' && copy.myRejected}
+                  {myClaim.status === 'completed' && copy.myCompleted}
                 </p>
                 <p className="text-xs text-text-secondary mt-1">
-                  Updates also appear in the notification bell and under Profile → Notifications.
+                  Updates also appear in the notification bell and under Profile → Alerts.
                   {myClaim.status === 'accepted' && (
                     <>
                       {' '}
@@ -287,16 +305,14 @@ export default function ItemDetailPage() {
             </div>
           )}
 
-          {isOwner && pendingClaims > 0 && (
+          {isOwner && pendingClaims > 0 && !isResolved && (
             <div className="rounded-2xl border border-accent/25 bg-accent/8 px-4 py-3.5 flex gap-3">
               <ShieldCheck className="w-5 h-5 text-accent shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-text-primary">
-                  {pendingClaims} claim request{pendingClaims > 1 ? 's' : ''} waiting for you
+                  {copy.ownerPendingTitle(pendingClaims)}
                 </p>
-                <p className="text-xs text-text-secondary mt-1">
-                  Review answers below. The item stays Available until you accept someone.
-                </p>
+                <p className="text-xs text-text-secondary mt-1">{copy.ownerPendingBody}</p>
               </div>
             </div>
           )}
@@ -340,19 +356,20 @@ export default function ItemDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2.5 pt-1">
-            {isOwner && (
+            {isOwner && !isResolved && (
               <Link to={`/items/${item._id}/edit`}>
                 <Button variant="outline">
                   <Pencil className="w-4 h-4" /> Edit Post
                 </Button>
               </Link>
             )}
-            {canClaim && (
+            {canRespond && (
               <Button onClick={() => setClaimOpen(true)} loading={actionLoading}>
-                <CheckCircle className="w-4 h-4" /> Request Claim
+                {isLost ? <Search className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                {copy.button}
               </Button>
             )}
-            {!isOwner && (
+            {!isOwner && !isResolved && (
               <Button variant="secondary" onClick={handleMessage}>
                 <MessageCircle className="w-4 h-4" /> Message Poster
               </Button>
@@ -360,8 +377,8 @@ export default function ItemDetailPage() {
             <Button variant="outline" onClick={handleToggleSave}>
               <Bookmark className="w-4 h-4" /> {saved ? 'Saved' : 'Save'}
             </Button>
-            {isOwner && displayStatus.key === 'claimed' && (
-              <Button onClick={handleResolve} loading={actionLoading}>
+            {isOwner && !isResolved && (displayStatus.key === 'claimed' || displayStatus.key === 'pending' || displayStatus.key === 'active') && (
+              <Button onClick={handleResolve} loading={actionLoading} variant={displayStatus.key === 'claimed' ? 'primary' : 'outline'}>
                 <CheckCircle className="w-4 h-4" /> Mark Returned
               </Button>
             )}
@@ -374,19 +391,19 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
-      {item.type === 'lost' && isOwner && <LostItemQrPanel item={item} />}
+      {item.type === 'lost' && isOwner && !isResolved && <LostItemQrPanel item={item} />}
 
       {isOwner && (
         <section className="mt-12">
           <div className="flex items-center gap-2 mb-5">
             <ShieldCheck className="w-5 h-5 text-accent" />
-            <h2 className="font-display text-xl font-semibold text-text-primary">Claim Requests</h2>
+            <h2 className="font-display text-xl font-semibold text-text-primary">{copy.sectionTitle}</h2>
             <Badge className="bg-accent/15 text-accent border-accent/30">{claims.length}</Badge>
           </div>
           <div className="space-y-4">
             {claims.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border px-5 py-8 text-sm text-text-muted text-center">
-                No claim requests yet. When someone claims, you’ll get a notification here and in the bell.
+                {copy.sectionEmpty}
               </div>
             ) : (
               claims.map((claim) => (
@@ -413,17 +430,17 @@ export default function ItemDetailPage() {
                       </div>
                     ))}
                   </div>
-                  {claim.status === 'pending' && (
+                  {claim.status === 'pending' && !isResolved && (
                     <div className="flex flex-wrap gap-3 mt-4">
                       <Button loading={actionLoading} onClick={() => handleClaimReview(claim._id, 'accepted')}>
-                        Accept Claim
+                        {copy.accept}
                       </Button>
                       <Button variant="secondary" loading={actionLoading} onClick={() => handleClaimReview(claim._id, 'rejected')}>
-                        Reject
+                        {copy.reject}
                       </Button>
                     </div>
                   )}
-                  {claim.status === 'accepted' && (
+                  {claim.status === 'accepted' && !isResolved && (
                     <div className="flex flex-wrap gap-3 mt-4">
                       <Button loading={actionLoading} onClick={() => handleClaimReview(claim._id, 'completed')}>
                         Mark Returned
@@ -502,19 +519,17 @@ export default function ItemDetailPage() {
       <Modal
         isOpen={claimOpen}
         onClose={() => setClaimOpen(false)}
-        title="Verify and request claim"
+        title={copy.modalTitle}
         footer={
           <>
             <Button variant="ghost" onClick={() => setClaimOpen(false)}>Cancel</Button>
-            <Button onClick={handleClaim} loading={actionLoading}>Send request</Button>
+            <Button onClick={handleClaim} loading={actionLoading}>{copy.submit}</Button>
           </>
         }
         size="lg"
       >
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
-            This sends a request to the poster. The item stays Available until they accept. You’ll get a notification when they respond — and a chat opens if they accept.
-          </p>
+          <p className="text-sm text-text-secondary">{copy.modalIntro}</p>
           {visibleClaimQuestions.map((question) => (
             <div key={question._id}>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">{question.question}</label>
@@ -527,10 +542,10 @@ export default function ItemDetailPage() {
             </div>
           ))}
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">Message to owner</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1.5">{copy.messageLabel}</label>
             <textarea
               className="w-full px-4 py-2.5 bg-surface-overlay border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40 min-h-[90px] resize-y"
-              placeholder="Tell them why you believe this is yours."
+              placeholder={copy.messagePlaceholder}
               value={claimerMessage}
               onChange={(e) => setClaimerMessage(e.target.value)}
             />

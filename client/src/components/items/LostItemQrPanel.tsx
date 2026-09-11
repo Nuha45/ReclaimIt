@@ -33,7 +33,7 @@ export default function LostItemQrPanel({ item }: LostItemQrPanelProps) {
           </div>
           <p className="text-sm text-text-secondary leading-relaxed">
             Print this QR and post it around campus. Anyone who scans it opens this listing on ReclaimIt
-            and can claim the item or message you — even if they never heard of the app before.
+            and can submit an “I Found This Item” report or message you — even if they never heard of the app before.
           </p>
           <div className="flex flex-wrap gap-2.5 pt-1">
             <a href={flyerHref} download={`reclaimit-flyer-${item._id}.svg`}>

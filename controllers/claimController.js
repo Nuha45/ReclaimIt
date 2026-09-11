@@ -9,6 +9,17 @@ const {
   sendClaimDecisionEmail,
   sendClaimCompletedEmail,
 } = require('../utils/emailService');
+const {
+  acceptedForSubmitter,
+  acceptedForPoster,
+  rejectedForSubmitter,
+  notSelectedForSubmitter,
+  returnedForUser,
+  returnedForPoster,
+  acceptChatMessage,
+  otherRejectedNotes,
+  isLostItem,
+} = require('../utils/itemTerminology');
 
 async function getClaimById(id) {
   return ClaimRequest.findById(id)
@@ -33,7 +44,12 @@ exports.getItemClaims = asyncHandler(async (req, res) => {
   const item = await Item.findById(req.params.itemId);
   if (!item) throw new AppError('Item not found', 404);
   if (item.postedBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-    throw new AppError('Not authorized to view claim requests', 403);
+    throw new AppError(
+      isLostItem(item)
+        ? 'Not authorized to view found reports'
+        : 'Not authorized to view claim requests',
+      403
+    );
   }
 
   const claims = await ClaimRequest.find({ item: item._id })
@@ -52,9 +68,11 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
   }
 
   const claim = await getClaimById(req.params.id);
-  if (!claim) throw new AppError('Claim request not found', 404);
+  if (!claim) {
+    throw new AppError('Request not found', 404);
+  }
   if (claim.owner._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-    throw new AppError('Not authorized to review this claim request', 403);
+    throw new AppError('Not authorized to review this request', 403);
   }
 
   claim.status = status;
@@ -68,7 +86,11 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
   if (status === 'accepted') {
     await ClaimRequest.updateMany(
       { item: item._id, _id: { $ne: claim._id }, status: 'pending' },
-      { status: 'rejected', ownerNotes: 'Another claim was accepted for this item.', reviewedAt: new Date() }
+      {
+        status: 'rejected',
+        ownerNotes: otherRejectedNotes(item),
+        reviewedAt: new Date(),
+      }
     );
 
     const otherPending = await ClaimRequest.find({
@@ -79,11 +101,12 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
     }).populate('claimer', 'name email');
 
     for (const other of otherPending) {
+      const copy = notSelectedForSubmitter({ item });
       await createNotification(Notification, {
         user: other.claimer._id || other.claimer,
         type: 'claim_rejected',
-        title: 'Claim Not Selected',
-        message: `Another claim for "${item.title}" was accepted. Your request was closed.`,
+        title: copy.title,
+        message: copy.message,
         relatedItem: item._id,
         relatedUser: claim.owner._id,
       });
@@ -103,16 +126,28 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
       sender: claim.owner._id,
       receiver: claim.claimer._id,
       item: item._id,
-      content: `Your claim for "${item.title}" has been accepted. Let's coordinate the return here.`,
+      content: acceptChatMessage({ item }),
     });
+
+    const forSubmitter = acceptedForSubmitter({ item });
+    const forPoster = acceptedForPoster({ item, actorName: claim.claimer.name });
 
     await createNotification(Notification, {
       user: claim.claimer._id,
       type: 'claim_verified',
-      title: 'Claim Accepted',
-      message: `Your claim for "${item.title}" was accepted. Open Messages to chat with the owner.`,
+      title: forSubmitter.title,
+      message: forSubmitter.message,
       relatedItem: item._id,
       relatedUser: claim.owner._id,
+    });
+
+    await createNotification(Notification, {
+      user: claim.owner._id,
+      type: 'claim_verified',
+      title: forPoster.title,
+      message: forPoster.message,
+      relatedItem: item._id,
+      relatedUser: claim.claimer._id,
     });
 
     sendClaimDecisionEmail({
@@ -124,11 +159,12 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
 
   if (status === 'rejected') {
     item.status = item.claimedBy ? 'claimed' : 'active';
+    const copy = rejectedForSubmitter({ item });
     await createNotification(Notification, {
       user: claim.claimer._id,
       type: 'claim_rejected',
-      title: 'Claim Rejected',
-      message: `Your claim for "${item.title}" was rejected by the owner.`,
+      title: copy.title,
+      message: copy.message,
       relatedItem: item._id,
       relatedUser: claim.owner._id,
     });
@@ -142,11 +178,14 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
 
   if (status === 'completed') {
     item.status = 'resolved';
+    const forOther = returnedForUser({ item });
+    const forOwner = returnedForPoster({ item, otherName: claim.claimer.name });
+
     await createNotification(Notification, {
       user: claim.claimer._id,
       type: 'claim_completed',
-      title: 'Item Returned',
-      message: `The return for "${item.title}" has been marked as completed. Please leave a review.`,
+      title: forOther.title,
+      message: forOther.message,
       relatedItem: item._id,
       relatedUser: claim.owner._id,
     });
@@ -154,8 +193,8 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
     await createNotification(Notification, {
       user: claim.owner._id,
       type: 'claim_completed',
-      title: 'Return completed — leave a review',
-      message: `Mark complete for "${item.title}". Please rate ${claim.claimer.name}.`,
+      title: forOwner.title,
+      message: forOwner.message,
       relatedItem: item._id,
       relatedUser: claim.claimer._id,
     });
