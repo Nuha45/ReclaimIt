@@ -6,14 +6,13 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { asyncHandler, AppError } = require('../utils/helpers');
 const { extractKeywords, findMatchingItems, createNotification } = require('../utils/matching');
-const { generateItemQrCode, generateItemFlyerSvg } = require('../utils/qrcode');
+const { generateItemQrPngBuffer, generateItemFlyerSvg } = require('../utils/qrcode');
+const { saveUploadedImages, cleanupLocalUploads } = require('../utils/storage');
 const { sendClaimReceivedEmail } = require('../utils/emailService');
 const {
   receivedForPoster,
   submittedForActor,
 } = require('../utils/itemTerminology');
-const fs = require('fs');
-const path = require('path');
 
 const ITEM_POPULATE = [
   { path: 'postedBy', select: 'name email avatar studentId averageRating' },
@@ -67,23 +66,6 @@ async function attachPendingClaims(items) {
   });
 }
 
-/** Ensure lost items have a QR file on disk (lazy for older posts) */
-async function ensureItemQrCode(item) {
-  if (!item || item.type !== 'lost') return item;
-
-  const absolute = item.qrCodeUrl
-    ? path.join(process.cwd(), item.qrCodeUrl.replace(/^\//, ''))
-    : null;
-  const exists = absolute && fs.existsSync(absolute);
-
-  if (item.qrCodeUrl && exists) return item;
-
-  const qrCodeUrl = await generateItemQrCode(item._id);
-  item.qrCodeUrl = qrCodeUrl;
-  await item.save();
-  return item;
-}
-
 exports.createItem = asyncHandler(async (req, res) => {
   const {
     title,
@@ -109,7 +91,14 @@ exports.createItem = asyncHandler(async (req, res) => {
     }
   }
 
-  const uploadedImagePaths = req.files?.map((f) => `/uploads/${f.filename}`) || [];
+  let uploadedImagePaths = [];
+  try {
+    uploadedImagePaths = await saveUploadedImages(req.files);
+  } catch (err) {
+    cleanupLocalUploads(req.files);
+    throw err;
+  }
+
   const questionInput = parseJsonField(verificationQuestions, []);
   const keywords = extractKeywords(
     `${title} ${description} ${color || ''} ${brand || ''} ${uniqueMarks || ''}`
@@ -160,11 +149,6 @@ exports.createItem = asyncHandler(async (req, res) => {
 
   item.photos = photos.map((photo) => photo._id);
   item.verificationQuestions = createdQuestions.map((question) => question._id);
-
-  // Unique QR for lost items → scanners land on the item detail page
-  if (type === 'lost') {
-    item.qrCodeUrl = await generateItemQrCode(item._id);
-  }
 
   await item.save();
 
@@ -270,7 +254,6 @@ exports.getItem = asyncHandler(async (req, res) => {
   }
 
   item = await healClaimStatus(item);
-  item = await ensureItemQrCode(item);
   item = await hydrateItem(req.params.id);
 
   const pendingClaims = await ClaimRequest.countDocuments({ item: item._id, status: 'pending' });
@@ -342,7 +325,13 @@ exports.updateItem = asyncHandler(async (req, res) => {
   }
 
   if (req.files?.length) {
-    const newPaths = req.files.map((f) => `/uploads/${f.filename}`);
+    let newPaths;
+    try {
+      newPaths = await saveUploadedImages(req.files);
+    } catch (err) {
+      cleanupLocalUploads(req.files);
+      throw err;
+    }
     updates.images = [...item.images, ...newPaths];
     const createdPhotos = await ItemPhoto.insertMany(
       newPaths.map((url) => ({
@@ -581,7 +570,14 @@ exports.addItemPhotos = asyncHandler(async (req, res) => {
     throw new AppError('Not authorized to update this item', 403);
   }
 
-  const newPaths = req.files?.map((file) => `/uploads/${file.filename}`) || [];
+  let newPaths = [];
+  try {
+    newPaths = await saveUploadedImages(req.files);
+  } catch (err) {
+    cleanupLocalUploads(req.files);
+    throw err;
+  }
+
   const photos = await ItemPhoto.insertMany(
     newPaths.map((url, index) => ({
       item: item._id,
@@ -597,23 +593,22 @@ exports.addItemPhotos = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, item: await hydrateItem(item._id) });
 });
 
-/** Download / regenerate QR PNG for a lost item */
+/** Download QR PNG for a lost item (generated in memory; no disk file required). */
 exports.getItemQr = asyncHandler(async (req, res) => {
-  let item = await Item.findById(req.params.id);
+  const item = await Item.findById(req.params.id);
   if (!item) throw new AppError('Item not found', 404);
   if (item.type !== 'lost') {
     throw new AppError('QR codes are only generated for lost items', 400);
   }
 
-  item = await ensureItemQrCode(item);
-  const absolute = path.join(process.cwd(), item.qrCodeUrl.replace(/^\//, ''));
+  const png = await generateItemQrPngBuffer(item._id);
 
   res.setHeader('Content-Type', 'image/png');
   res.setHeader(
     'Content-Disposition',
     `inline; filename="reclaimit-${item._id}-qr.png"`
   );
-  res.sendFile(absolute);
+  res.send(png);
 });
 
 /** Downloadable printable flyer (SVG) with embedded QR */
@@ -624,7 +619,6 @@ exports.getItemFlyer = asyncHandler(async (req, res) => {
     throw new AppError('Flyers are only available for lost items', 400);
   }
 
-  item = await ensureItemQrCode(item);
   const svg = await generateItemFlyerSvg(item);
   const safeTitle = String(item.title || 'item')
     .replace(/[^a-z0-9]+/gi, '-')

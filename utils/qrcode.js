@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const QRCode = require('qrcode');
 
 function getClientBaseUrl() {
@@ -10,12 +8,16 @@ function getItemPageUrl(itemId) {
   return `${getClientBaseUrl()}/items/${itemId}`;
 }
 
-function getQrDir() {
-  const uploadRoot = process.env.UPLOAD_PATH || 'uploads';
-  const qrDir = path.join(uploadRoot, 'qr');
-  fs.mkdirSync(qrDir, { recursive: true });
-  return qrDir;
-}
+const QR_PNG_OPTIONS = {
+  type: 'png',
+  width: 512,
+  margin: 2,
+  errorCorrectionLevel: 'H',
+  color: {
+    dark: '#0c0e14',
+    light: '#ffffff',
+  },
+};
 
 function escapeXml(value) {
   return String(value || '')
@@ -26,28 +28,10 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-/**
- * Generate a unique QR PNG for an item that points at the item detail page.
- * @returns {Promise<string>} public path e.g. /uploads/qr/item-….png
- */
-async function generateItemQrCode(itemId) {
-  const qrDir = getQrDir();
-  const filename = `item-${itemId}.png`;
-  const filePath = path.join(qrDir, filename);
+/** In-memory QR PNG for GET /api/items/:id/qr (no filesystem dependency). */
+async function generateItemQrPngBuffer(itemId) {
   const targetUrl = getItemPageUrl(itemId);
-
-  await QRCode.toFile(filePath, targetUrl, {
-    type: 'png',
-    width: 512,
-    margin: 2,
-    errorCorrectionLevel: 'H',
-    color: {
-      dark: '#0c0e14',
-      light: '#ffffff',
-    },
-  });
-
-  return `/uploads/qr/${filename}`;
+  return QRCode.toBuffer(targetUrl, QR_PNG_OPTIONS);
 }
 
 /**
@@ -98,6 +82,6 @@ async function generateItemFlyerSvg(item) {
 
 module.exports = {
   getItemPageUrl,
-  generateItemQrCode,
+  generateItemQrPngBuffer,
   generateItemFlyerSvg,
 };

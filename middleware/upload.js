@@ -1,23 +1,27 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { getStorageDriver } = require('../utils/storage');
 
 const uploadDir = process.env.UPLOAD_PATH || 'uploads';
+const useCloudinary = getStorageDriver() === 'cloudinary';
 
-if (!fs.existsSync(uploadDir)) {
+if (!useCloudinary && !fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination(_req, _file, cb) {
-    cb(null, uploadDir);
-  },
-  filename(_req, file, cb) {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `beacon-${uniqueSuffix}${ext}`);
-  },
-});
+const storage = useCloudinary
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination(_req, _file, cb) {
+        cb(null, uploadDir);
+      },
+      filename(_req, file, cb) {
+        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `beacon-${uniqueSuffix}${ext}`);
+      },
+    });
 
 const fileFilter = (_req, file, cb) => {
   const allowed = /jpeg|jpg|png|gif|webp/;
