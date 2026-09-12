@@ -70,7 +70,7 @@ export default function BrowsePage() {
   }, [filters, isAuthenticated]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 min-w-0">
       <div className="mb-8">
         <h1 className="font-display text-3xl font-semibold text-text-primary mb-2 tracking-tight">Browse campus finds</h1>
         <p className="text-text-secondary">Compact cards, clear status, and smarter matches — reclaim what matters.</p>

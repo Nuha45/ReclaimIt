@@ -8,7 +8,15 @@ import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox, Star
 import { authApi, claimsApi, itemsApi, reviewsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item, Notification, PendingReview, Review, SearchHistoryEntry } from '../types';
-import { getInitials, formatRelativeTime, capitalize, getDisplayStatus } from '../lib/utils';
+import {
+  getInitials,
+  formatRelativeTime,
+  capitalize,
+  getDisplayStatus,
+  refUserId,
+  refUserName,
+  claimItemRef,
+} from '../lib/utils';
 import { STATUS_COLORS, TYPE_COLORS } from '../lib/constants';
 import Input from '../components/ui/Input';
 import PasswordInput from '../components/ui/PasswordInput';
@@ -147,8 +155,8 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className="flex items-center gap-4 mb-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
         <div className="w-16 h-16 rounded-2xl bg-accent/20 border border-accent/30 flex items-center justify-center text-xl font-bold text-accent">
           {getInitials(user?.name || 'U')}
         </div>
@@ -171,16 +179,17 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="flex gap-1 mb-8 bg-surface-raised border border-border-subtle rounded-xl p-1 overflow-x-auto">
+      <div className="flex gap-1 mb-8 bg-surface-raised border border-border-subtle rounded-xl p-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
+            type="button"
             onClick={() => setTab(id)}
-            className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+            className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ${
               tab === id ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-4 h-4 shrink-0" />
             {label}
           </button>
         ))}
@@ -203,8 +212,8 @@ export default function ProfilePage() {
             {myItems.map((item) => {
               const status = getDisplayStatus(item, item.pendingClaims || 0);
               return (
-                <Card key={item._id} className="!p-4 flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
+                <Card key={item._id} className="!p-4 flex flex-wrap items-center gap-3 sm:gap-4">
+                  <div className="flex-1 min-w-0 basis-[min(100%,12rem)]">
                     <div className="flex flex-wrap gap-2 mb-1">
                       <Badge className={TYPE_COLORS[item.type]}>{capitalize(item.type)}</Badge>
                       <Badge className={STATUS_COLORS[status.key] || STATUS_COLORS.active}>{status.label}</Badge>
@@ -235,15 +244,18 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-3">
             {claims.map((claim) => {
-              const itemId = typeof claim.item === 'object' ? claim.item._id : (claim.item as unknown as string);
-              const itemTitle = typeof claim.item === 'object' ? claim.item.title : 'Item';
-              const itemType = typeof claim.item === 'object' ? claim.item.type : undefined;
+              const { id: itemId, title: itemTitle, type: itemType } = claimItemRef(
+                claim.item as Item | string | null
+              );
               const isLost = itemType === 'lost';
-              const isOwner = claim.owner._id === user?._id;
+              const ownerId = refUserId(claim.owner);
+              const claimerId = refUserId(claim.claimer);
+              const isOwner = ownerId != null && ownerId === user?._id;
+              const chatUserId = isOwner ? claimerId : ownerId;
               return (
                 <Card key={claim._id} className="!p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-text-muted mb-1">
                         {isOwner
                           ? isLost
@@ -253,20 +265,31 @@ export default function ProfilePage() {
                             ? 'Your found report'
                             : 'Your claim'}
                       </p>
-                      <Link to={`/items/${itemId}`} className="font-medium text-text-primary hover:text-accent">
-                        {itemTitle}
-                      </Link>
+                      {itemId ? (
+                        <Link to={`/items/${itemId}`} className="font-medium text-text-primary hover:text-accent break-words">
+                          {itemTitle}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-text-secondary break-words">{itemTitle}</p>
+                      )}
                       <p className="text-sm text-text-secondary mt-1">
-                        {isOwner ? `From ${claim.claimer.name}` : `To ${claim.owner.name}`}
+                        {isOwner
+                          ? `From ${refUserName(claim.claimer)}`
+                          : `To ${refUserName(claim.owner)}`}
                       </p>
                     </div>
-                    <Badge className={STATUS_COLORS[claim.status]}>{capitalize(claim.status)}</Badge>
+                    <Badge className={STATUS_COLORS[claim.status] || STATUS_COLORS.pending}>
+                      {capitalize(claim.status)}
+                    </Badge>
                   </div>
                   <p className="text-xs text-text-muted mt-3">
                     {claim.status === 'pending' && isOwner && 'Open the item to accept or decline.'}
                     {claim.status === 'pending' && !isOwner && 'Waiting on the poster — watch the notification bell.'}
-                    {claim.status === 'accepted' && (
-                      <Link className="text-accent" to={`/chat?user=${isOwner ? claim.claimer._id : claim.owner._id}&item=${itemId}`}>
+                    {claim.status === 'accepted' && chatUserId && (
+                      <Link
+                        className="text-accent break-words"
+                        to={`/chat?user=${chatUserId}${itemId ? `&item=${itemId}` : ''}`}
+                      >
                         Open chat to coordinate return →
                       </Link>
                     )}
@@ -283,7 +306,9 @@ export default function ProfilePage() {
           {pendingReviews.length > 0 && (
             <div className="space-y-4">
               <h2 className="font-display font-semibold text-text-primary">Pending reviews</h2>
-              {pendingReviews.map(({ claim, reviewee }) => (
+              {pendingReviews.map(({ claim, reviewee }) => {
+                if (!reviewee?._id) return null;
+                return (
                 <ReviewForm
                   key={claim._id}
                   claimRequestId={claim._id}
@@ -296,7 +321,8 @@ export default function ProfilePage() {
                     }
                   }}
                 />
-              ))}
+              );
+              })}
             </div>
           )}
           <div className="space-y-3">
@@ -306,8 +332,8 @@ export default function ProfilePage() {
             ) : (
               myReviews.map((review) => (
                 <Card key={review._id} className="!p-4">
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <p className="font-medium text-text-primary text-sm">{review.reviewer.name}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                    <p className="font-medium text-text-primary text-sm">{refUserName(review.reviewer, 'Someone')}</p>
                     <Badge className="bg-accent/15 text-accent border-accent/30">
                       <Star className="w-3 h-3 mr-1 fill-accent" /> {review.rating}/5
                     </Badge>

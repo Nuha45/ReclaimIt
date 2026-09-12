@@ -1,3 +1,4 @@
+import type { Item } from '../types';
 import { API_ORIGIN } from './constants';
 
 export function cn(...classes: (string | false | null | undefined)[]) {
@@ -156,6 +157,33 @@ export function getItemActionCopy(type: 'lost' | 'found' | string) {
     myRejected: 'Your claim was rejected',
     myCompleted: 'This return is marked complete',
   };
+}
+
+/** User or id ref from populated API fields. */
+export function refUserId(ref: string | { _id: string } | null | undefined): string | undefined {
+  if (ref == null) return undefined;
+  if (typeof ref === 'string') return ref;
+  return ref._id;
+}
+
+export function refUserName(ref: string | { name?: string } | null | undefined, fallback = 'User'): string {
+  if (ref == null || typeof ref === 'string') return fallback;
+  return ref.name?.trim() || fallback;
+}
+
+/** Claim item may be null when the listing was deleted but the claim row remains. */
+export function claimItemRef(item: Item | string | null | undefined): {
+  id: string | undefined;
+  title: string;
+  type: Item['type'] | undefined;
+} {
+  if (item == null) {
+    return { id: undefined, title: 'Item no longer available', type: undefined };
+  }
+  if (typeof item === 'string') {
+    return { id: item, title: 'Item', type: undefined };
+  }
+  return { id: item._id, title: item.title || 'Item', type: item.type };
 }
 
 export function getMatchLabel(score?: number) {
