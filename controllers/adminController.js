@@ -97,6 +97,7 @@ exports.getAllItems = asyncHandler(async (req, res) => {
   const { status, type, page = 1, limit = 20 } = req.query;
   const filter = {};
   if (status) filter.status = status;
+  else filter.status = { $ne: 'removed' };
   if (type) filter.type = type;
 
   const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
@@ -129,16 +130,20 @@ exports.deleteItem = asyncHandler(async (req, res) => {
     throw new AppError('Item not found', 404);
   }
 
-  item.status = 'removed';
-  await item.save();
+  const { postedBy, title, _id: itemId } = item;
 
-  await createNotification(Notification, {
-    user: item.postedBy,
+  createNotification(Notification, {
+    user: postedBy,
     type: 'admin_action',
     title: 'Item Removed',
-    message: `Your item "${item.title}" was removed by an administrator.`,
-    relatedItem: item._id,
-  });
+    message: `Your item "${title}" was removed by an administrator.`,
+    relatedItem: itemId,
+  }).catch(() => {});
+
+  const deleted = await Item.findByIdAndDelete(req.params.id);
+  if (!deleted) {
+    throw new AppError('Item not found', 404);
+  }
 
   res.status(200).json({ success: true, message: 'Item removed successfully' });
 });

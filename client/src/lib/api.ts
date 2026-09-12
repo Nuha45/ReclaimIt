@@ -213,7 +213,7 @@ export const adminApi = {
   banUser: (id: string) => api.put<{ success: boolean; message: string }>(`/admin/users/${id}/ban`),
   unbanUser: (id: string) => api.put<{ success: boolean; message: string }>(`/admin/users/${id}/unban`),
   promoteUser: (id: string) => api.put<{ success: boolean; message: string }>(`/admin/users/${id}/promote`),
-  getItems: (params?: { status?: string; type?: string; page?: number }) =>
+  getItems: (params?: { status?: string; type?: string; page?: number; limit?: number }) =>
     api.get<{ success: boolean; items: Item[]; pagination: Pagination }>('/admin/items', { params }),
   deleteItem: (id: string) => api.delete<{ success: boolean; message: string }>(`/admin/items/${id}`),
   getViolations: (params?: { status?: string; page?: number }) =>

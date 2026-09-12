@@ -16,13 +16,20 @@ export default function AdminItems() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
 
-  const fetchItems = () => {
-    adminApi.getItems()
+  const fetchItems = (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    adminApi
+      .getItems({ limit: 100 })
       .then(({ data }) => setItems(data.items))
-      .finally(() => setLoading(false));
+      .catch(() => setItems([]))
+      .finally(() => {
+        if (!opts?.silent) setLoading(false);
+      });
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => {
+    fetchItems();
+  }, []);
 
   const handleRemove = async (id: string) => {
     if (!confirm('Remove this item from the platform?')) return;
@@ -31,6 +38,7 @@ export default function AdminItems() {
       await adminApi.deleteItem(id);
       toast.success('Item removed');
       setItems((prev) => prev.filter((i) => i._id !== id));
+      fetchItems({ silent: true });
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {

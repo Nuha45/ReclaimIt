@@ -386,7 +386,7 @@ exports.deleteItem = asyncHandler(async (req, res) => {
 });
 
 exports.getMyItems = asyncHandler(async (req, res) => {
-  const rawItems = await Item.find({ postedBy: req.user._id })
+  const rawItems = await Item.find({ postedBy: req.user._id, status: { $ne: 'removed' } })
     .sort('-createdAt')
     .populate(ITEM_POPULATE);
 
