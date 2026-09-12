@@ -27,6 +27,9 @@ for (const key of requiredEnv) {
   }
 }
 
+// One reverse proxy (e.g. Render) — required so express-rate-limit honors X-Forwarded-For
+app.set('trust proxy', 1);
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
