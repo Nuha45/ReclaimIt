@@ -8,6 +8,7 @@ import { LogIn } from 'lucide-react';
 import { authApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import Input from '../components/ui/Input';
+import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 
@@ -66,13 +67,18 @@ export default function LoginPage() {
               error={errors.email?.message}
               {...register('email')}
             />
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               placeholder="••••••••"
+              autoComplete="current-password"
               error={errors.password?.message}
               {...register('password')}
             />
+            <div className="flex justify-end -mt-2">
+              <Link to="/forgot-password" className="text-sm text-accent hover:underline font-medium">
+                Forgot password?
+              </Link>
+            </div>
             <Button type="submit" className="w-full" loading={loading}>
               Sign in
             </Button>

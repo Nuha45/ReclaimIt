@@ -8,6 +8,7 @@ import { UserPlus } from 'lucide-react';
 import { authApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import Input from '../components/ui/Input';
+import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 
@@ -84,17 +85,17 @@ export default function SignupPage() {
               error={errors.studentId?.message}
               {...register('studentId')}
             />
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               placeholder="••••••••"
+              autoComplete="new-password"
               error={errors.password?.message}
               {...register('password')}
             />
-            <Input
+            <PasswordInput
               label="Confirm Password"
-              type="password"
               placeholder="••••••••"
+              autoComplete="new-password"
               error={errors.confirmPassword?.message}
               {...register('confirmPassword')}
             />

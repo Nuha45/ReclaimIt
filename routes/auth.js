@@ -6,9 +6,13 @@ const { protect } = require('../middleware/auth');
 // Auth routes
 router.post('/signup', authController.signup);
 router.post('/login', authController.login);
+router.post('/forgot-password', authController.forgotPassword);
+router.get('/reset-password/:token/validate', authController.validateResetToken);
+router.post('/reset-password', authController.resetPassword);
 
 // User routes (require authentication)
 router.get('/me', protect, authController.getMe);
+router.put('/change-password', protect, authController.changePassword);
 router.put('/profile', protect, authController.updateProfile);
 router.get('/saved-items', protect, authController.getSavedItems);
 router.post('/saved-items/toggle', protect, authController.toggleSavedItem);

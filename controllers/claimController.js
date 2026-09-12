@@ -129,25 +129,27 @@ exports.reviewClaim = asyncHandler(async (req, res) => {
       content: acceptChatMessage({ item }),
     });
 
+    const submitterId = claim.claimer._id || claim.claimer;
+    const posterId = claim.owner._id || claim.owner;
     const forSubmitter = acceptedForSubmitter({ item });
     const forPoster = acceptedForPoster({ item, actorName: claim.claimer.name });
 
     await createNotification(Notification, {
-      user: claim.claimer._id,
+      user: submitterId,
       type: 'claim_verified',
       title: forSubmitter.title,
       message: forSubmitter.message,
       relatedItem: item._id,
-      relatedUser: claim.owner._id,
+      relatedUser: posterId,
     });
 
     await createNotification(Notification, {
-      user: claim.owner._id,
+      user: posterId,
       type: 'claim_verified',
       title: forPoster.title,
       message: forPoster.message,
       relatedItem: item._id,
-      relatedUser: claim.claimer._id,
+      relatedUser: submitterId,
     });
 
     sendClaimDecisionEmail({

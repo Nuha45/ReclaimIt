@@ -41,13 +41,14 @@ function submittedForActor({ item }) {
 function acceptedForSubmitter({ item }) {
   if (isLostItem(item)) {
     return {
-      title: 'Found Report Accepted',
-      message: `Your found report for "${titleOf(item)}" was accepted. Open Messages to coordinate the return.`,
+      title: '🧡 Great news!',
+      message:
+        "Your Found Report was accepted. You're helping reunite a lost item with its owner!",
     };
   }
   return {
-    title: 'Claim Accepted',
-    message: `Your claim for "${titleOf(item)}" has been accepted. Open Messages to coordinate the return.`,
+    title: "🎉 It's happening!",
+    message: "Your claim was accepted! You're one step closer to getting your item back. 🧡",
   };
 }
 
@@ -161,12 +162,18 @@ function presentNotification(notification) {
         message: `Your found report for "${itemTitle}" was sent. You'll be notified when the owner responds.`,
       };
     case 'claim_verified':
+      if (/you accepted/i.test(message)) {
+        return {
+          ...notification,
+          title: 'Found Report Accepted',
+          message: `You accepted ${actor}'s report that they found your "${itemTitle}". You can now coordinate the return.`,
+        };
+      }
       return {
         ...notification,
-        title: 'Found Report Accepted',
-        message: /you accepted/i.test(message)
-          ? `You accepted ${actor}'s report that they found your "${itemTitle}". You can now coordinate the return.`
-          : `Your found report for "${itemTitle}" was accepted. Open Messages to coordinate the return.`,
+        title: '🧡 Great news!',
+        message:
+          "Your Found Report was accepted. You're helping reunite a lost item with its owner!",
       };
     case 'claim_rejected':
       return {

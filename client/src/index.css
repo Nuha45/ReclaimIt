@@ -50,6 +50,86 @@ body {
   min-height: 100vh;
 }
 
+/* ReclaimIt PasswordInput — hide browser default reveal (Edge/Chrome eye) */
+.reclaim-password-field::-ms-reveal,
+.reclaim-password-field::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.reclaim-password-field::-webkit-credentials-auto-fill-button,
+.reclaim-password-field::-webkit-password-reveal-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+  pointer-events: none;
+}
+
+@keyframes good-deed-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes good-deed-sparkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(-4deg);
+  }
+  50% {
+    transform: scale(1.12) rotate(4deg);
+  }
+}
+
+@keyframes good-deed-shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes good-deed-confetti {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110px) translateX(var(--drift, 0px)) rotate(420deg);
+    opacity: 0;
+  }
+}
+
+.animate-good-deed-pop {
+  animation: good-deed-pop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+.animate-good-deed-sparkle {
+  animation: good-deed-sparkle 2.2s ease-in-out infinite;
+}
+
+.animate-good-deed-shimmer {
+  animation: good-deed-shimmer 3s ease-in-out infinite;
+}
+
+.animate-good-deed-confetti {
+  animation-name: good-deed-confetti;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

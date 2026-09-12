@@ -42,13 +42,21 @@ const allowedOrigins = [
   'http://127.0.0.1:3000',
 ].filter(Boolean);
 
+function isLocalDevOrigin(origin) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
+
 app.use(cors({
   origin(origin, callback) {
-    // Allow non-browser tools (no Origin) and local frontend ports
+    // Allow non-browser tools (no Origin) and configured frontend URLs
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
+    // Vite may use 5174+ when 5173 is taken — allow any local dev port in development
+    if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
   },
   credentials: true,
 }));
@@ -84,6 +92,9 @@ const authLimiter = rateLimit({
 app.use('/api', limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/auth/change-password', authLimiter);
 
 const uploadPath = process.env.UPLOAD_PATH || 'uploads';
 app.use('/uploads', express.static(path.join(__dirname, uploadPath)));

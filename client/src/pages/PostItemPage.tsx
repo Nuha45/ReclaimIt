@@ -12,6 +12,8 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import ImageUpload from '../components/ui/ImageUpload';
+import GoodDeedCelebration from '../components/celebration/GoodDeedCelebration';
+import type { GoodDeedCelebrationKind } from '../lib/goodDeedCelebration';
 
 const schema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(150),
@@ -41,6 +43,10 @@ export default function PostItemPage() {
     { question: '', answer: '' },
   ]);
   const [loading, setLoading] = useState(false);
+  const [goodDeed, setGoodDeed] = useState<GoodDeedCelebrationKind | null>(null);
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [pendingMatchCount, setPendingMatchCount] = useState(0);
+  const [postedLostItem, setPostedLostItem] = useState(false);
 
   const {
     register,
@@ -82,14 +88,10 @@ export default function PostItemPage() {
       images.forEach((file) => formData.append('images', file));
 
       const { data: res } = await itemsApi.create(formData);
-      toast.success('Item posted successfully!');
-      if (data.type === 'lost') {
-        toast.success('QR flyer ready — download it from the item page to post around campus.');
-      }
-      if (res.suggestedMatches?.length) {
-        toast.success(`Found ${res.suggestedMatches.length} potential match(es)!`);
-      }
-      navigate(`/items/${res.item._id}`);
+      setPendingItemId(res.item._id);
+      setPendingMatchCount(res.suggestedMatches?.length || 0);
+      setPostedLostItem(data.type === 'lost');
+      setGoodDeed(data.type === 'lost' ? 'lostPost' : 'foundPost');
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -239,6 +241,23 @@ export default function PostItemPage() {
           </Button>
         </form>
       </Card>
+
+      <GoodDeedCelebration
+        kind={goodDeed}
+        onClose={() => {
+          setGoodDeed(null);
+          if (pendingMatchCount > 0) {
+            toast.success(`Found ${pendingMatchCount} potential match(es)!`);
+          }
+          if (postedLostItem) {
+            toast.success('QR flyer ready — download it from the item page to post around campus.');
+          }
+          if (pendingItemId) {
+            navigate(`/items/${pendingItemId}`);
+            setPendingItemId(null);
+          }
+        }}
+      />
     </div>
   );
 }

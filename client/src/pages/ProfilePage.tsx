@@ -4,13 +4,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox, Star } from 'lucide-react';
+import { Package, Settings, Bell, Trash2, Bookmark, History, Pencil, Inbox, Star, LogOut } from 'lucide-react';
 import { authApi, claimsApi, itemsApi, reviewsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item, Notification, PendingReview, Review, SearchHistoryEntry } from '../types';
 import { getInitials, formatRelativeTime, capitalize, getDisplayStatus } from '../lib/utils';
 import { STATUS_COLORS, TYPE_COLORS } from '../lib/constants';
 import Input from '../components/ui/Input';
+import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -24,10 +25,23 @@ const profileSchema = z.object({
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter your current password'),
+    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 type Tab = 'items' | 'claims' | 'reviews' | 'saved' | 'searches' | 'settings' | 'notifications';
 
 export default function ProfilePage() {
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
   const [tab, setTab] = useState<Tab>('items');
   const [myItems, setMyItems] = useState<Item[]>([]);
   const [claims, setClaims] = useState<ClaimRequest[]>([]);
@@ -38,11 +52,19 @@ export default function ProfilePage() {
   const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: { name: user?.name || '', studentId: user?.studentId || '' },
   });
+
+  const {
+    register: registerPassword,
+    handleSubmit: handleSubmitPassword,
+    reset: resetPasswordForm,
+    formState: { errors: passwordErrors },
+  } = useForm<ChangePasswordForm>({ resolver: zodResolver(changePasswordSchema) });
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +109,19 @@ export default function ProfilePage() {
       toast.error(getErrorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onChangePassword = async (data: ChangePasswordForm) => {
+    setChangingPassword(true);
+    try {
+      const res = await authApi.changePassword(data);
+      toast.success(res.data.message);
+      resetPasswordForm();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -342,14 +377,57 @@ export default function ProfilePage() {
           </div>
         )
       ) : (
-        <Card>
-          <form onSubmit={handleSubmit(onSaveProfile)} className="space-y-5">
-            <Input label="Full Name" error={errors.name?.message} {...register('name')} />
-            <Input label="Student ID" placeholder="Optional" error={errors.studentId?.message} {...register('studentId')} />
-            <Input label="Email" value={user?.email || ''} disabled className="opacity-60" />
-            <Button type="submit" loading={saving}>Save Changes</Button>
-          </form>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <h2 className="font-display text-lg font-semibold text-text-primary mb-1">Profile information</h2>
+            <p className="text-sm text-text-muted mb-5">Update how your name appears on posts and messages.</p>
+            <form onSubmit={handleSubmit(onSaveProfile)} className="space-y-5">
+              <Input label="Full Name" error={errors.name?.message} {...register('name')} />
+              <Input label="Student ID" placeholder="Optional" error={errors.studentId?.message} {...register('studentId')} />
+              <Input label="Email" value={user?.email || ''} disabled className="opacity-60" hint="Email cannot be changed here." />
+              <Button type="submit" loading={saving}>Save profile</Button>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="font-display text-lg font-semibold text-text-primary mb-1">Change password</h2>
+            <p className="text-sm text-text-muted mb-5">Use a strong password you don&apos;t use elsewhere.</p>
+            <form onSubmit={handleSubmitPassword(onChangePassword)} className="space-y-5">
+              <PasswordInput
+                label="Current password"
+                autoComplete="current-password"
+                error={passwordErrors.currentPassword?.message}
+                {...registerPassword('currentPassword')}
+              />
+              <PasswordInput
+                label="New password"
+                autoComplete="new-password"
+                error={passwordErrors.newPassword?.message}
+                {...registerPassword('newPassword')}
+              />
+              <PasswordInput
+                label="Confirm new password"
+                autoComplete="new-password"
+                error={passwordErrors.confirmPassword?.message}
+                {...registerPassword('confirmPassword')}
+              />
+              <Button type="submit" loading={changingPassword}>Update password</Button>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="font-display text-lg font-semibold text-text-primary mb-1">Account</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Signed in as <span className="text-text-primary font-medium">{user?.email}</span>
+              {user?.role === 'admin' && (
+                <span className="ml-2 text-xs text-accent">(Admin)</span>
+              )}
+            </p>
+            <Button variant="outline" onClick={logout}>
+              <LogOut className="w-4 h-4" /> Log out
+            </Button>
+          </Card>
+        </div>
       )}
     </div>
   );

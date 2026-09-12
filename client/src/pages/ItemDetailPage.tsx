@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, User, MessageCircle, Flag, CheckCircle,
@@ -9,7 +9,16 @@ import { authApi, claimsApi, itemsApi, reviewsApi, violationsApi, getErrorMessag
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item } from '../types';
 import { TYPE_COLORS, STATUS_COLORS, VIOLATION_REASONS } from '../lib/constants';
-import { formatDate, getImageUrl, capitalize, getInitials, getDisplayStatus, getMatchLabel, getItemActionCopy } from '../lib/utils';
+import {
+  formatDate,
+  getImageUrl,
+  capitalize,
+  getInitials,
+  getDisplayStatus,
+  getMatchLabel,
+  getItemActionCopy,
+  isClaimAcceptNotificationForSubmitter,
+} from '../lib/utils';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
@@ -18,6 +27,8 @@ import Select from '../components/ui/Select';
 import ItemCard from '../components/items/ItemCard';
 import LostItemQrPanel from '../components/items/LostItemQrPanel';
 import ReviewForm from '../components/reviews/ReviewForm';
+import GoodDeedCelebration from '../components/celebration/GoodDeedCelebration';
+import type { GoodDeedCelebrationKind } from '../lib/goodDeedCelebration';
 
 export default function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,15 +44,24 @@ export default function ItemDetailPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
+  const [goodDeed, setGoodDeed] = useState<GoodDeedCelebrationKind | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportDesc, setReportDesc] = useState('');
   const [claimerMessage, setClaimerMessage] = useState('');
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [needsReviewClaimIds, setNeedsReviewClaimIds] = useState<Set<string>>(new Set());
+  const celebratedRef = useRef<Set<string>>(new Set());
+  const queuedCelebrationRef = useRef<GoodDeedCelebrationKind | null>(null);
+
+  const showCelebrationOnce = useCallback((key: string, kind: GoodDeedCelebrationKind) => {
+    if (celebratedRef.current.has(key)) return;
+    celebratedRef.current.add(key);
+    setGoodDeed(kind);
+  }, []);
 
   const refresh = async () => {
-    if (!id) return;
+    if (!id) return null;
     const [itemRes, matchRes] = await Promise.all([
       itemsApi.getById(id),
       itemsApi.getMatches(id),
@@ -68,6 +88,7 @@ export default function ItemDetailPage() {
       );
       setNeedsReviewClaimIds(ids);
     }
+    return itemRes.data;
   };
 
   useEffect(() => {
@@ -78,6 +99,53 @@ export default function ItemDetailPage() {
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (!item || !myClaim || !user || !isAuthenticated) return;
+    if (user._id === item.postedBy._id) return;
+    if (myClaim.status !== 'pending') return;
+
+    const interval = setInterval(() => {
+      refresh().catch(() => {});
+    }, 20000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?._id, myClaim?._id, myClaim?.status, user?._id, isAuthenticated]);
+
+  useEffect(() => {
+    if (!item || !myClaim || !user || !isAuthenticated) return;
+    if (user._id === item.postedBy._id) return;
+
+    const pendingReturnKey = `pending-return-${myClaim._id}`;
+    const handoffDone = item.status === 'resolved' || myClaim.status === 'completed';
+
+    if (myClaim.status === 'accepted') {
+      authApi
+        .getNotifications({ page: 1 })
+        .then(({ data }) => {
+          const acceptNotif = data.notifications.find(
+            (n) =>
+              n.relatedItem?._id === item._id && isClaimAcceptNotificationForSubmitter(n)
+          );
+          if (!acceptNotif) return;
+          const kind: GoodDeedCelebrationKind =
+            item.type === 'found' ? 'claimAccepted' : 'foundReportAccepted';
+          showCelebrationOnce(`accept-notif-${acceptNotif._id}`, kind);
+          sessionStorage.setItem(pendingReturnKey, '1');
+          if (handoffDone && sessionStorage.getItem(pendingReturnKey)) {
+            sessionStorage.removeItem(pendingReturnKey);
+            queuedCelebrationRef.current = 'returnCompleted';
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
+    if (handoffDone && sessionStorage.getItem(pendingReturnKey)) {
+      sessionStorage.removeItem(pendingReturnKey);
+      showCelebrationOnce(`${myClaim._id}-return-claimer`, 'returnCompleted');
+    }
+  }, [item, myClaim, user, isAuthenticated, showCelebrationOnce]);
 
   if (loading) {
     return (
@@ -106,6 +174,8 @@ export default function ItemDetailPage() {
 
   const handleClaim = async () => {
     if (!isAuthenticated) { navigate('/login'); return; }
+    if (!item) return;
+    const itemType = item.type;
     setActionLoading(true);
     try {
       const payload = {
@@ -116,9 +186,17 @@ export default function ItemDetailPage() {
         })),
       };
       await itemsApi.claim(id!, payload);
-      await refresh();
       setClaimOpen(false);
-      toast.success(copy.successToast);
+      if (itemType === 'lost') {
+        setGoodDeed('foundReport');
+      } else {
+        toast.success(copy.successToast);
+      }
+      try {
+        await refresh();
+      } catch {
+        /* claim succeeded; celebration already shown */
+      }
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -131,7 +209,7 @@ export default function ItemDetailPage() {
     try {
       const { data } = await itemsApi.resolve(id!);
       setItem(data.item);
-      toast.success('Item marked as returned');
+      showCelebrationOnce(`resolve-${data.item._id}-owner`, 'returnCompleted');
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -162,14 +240,18 @@ export default function ItemDetailPage() {
     setActionLoading(true);
     try {
       const { data } = await claimsApi.review(claimId, { status });
-      await refresh();
       if (status === 'accepted') {
         toast.success(isLost ? 'Found Report Accepted — opening chat' : 'Claim Accepted — opening chat');
         navigate(`/chat?user=${data.claim.claimer._id}&item=${item._id}`);
       } else if (status === 'rejected') {
         toast.success(isLost ? 'Found Report Rejected' : 'Claim Rejected');
-      } else {
-        toast.success('Marked as returned');
+      } else if (status === 'completed') {
+        showCelebrationOnce(`claim-${claimId}-completed-owner`, 'returnCompleted');
+      }
+      try {
+        await refresh();
+      } catch {
+        /* review succeeded */
       }
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -583,6 +665,18 @@ export default function ItemDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <GoodDeedCelebration
+        kind={goodDeed}
+        onClose={() => {
+          setGoodDeed(null);
+          const queued = queuedCelebrationRef.current;
+          if (queued && myClaim) {
+            queuedCelebrationRef.current = null;
+            showCelebrationOnce(`${myClaim._id}-return-claimer`, queued);
+          }
+        }}
+      />
     </div>
   );
 }

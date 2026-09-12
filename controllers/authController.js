@@ -1,7 +1,21 @@
+const crypto = require('crypto');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { asyncHandler, sendTokenResponse, AppError } = require('../utils/helpers');
 const { presentNotification } = require('../utils/itemTerminology');
+const { sendPasswordResetEmail } = require('../utils/emailService');
+
+const FORGOT_PASSWORD_MESSAGE =
+  'If an account exists with that email, a password reset link has been sent.';
+
+function hashResetToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+function getResetTokenExpiryMs() {
+  const minutes = Number(process.env.PASSWORD_RESET_EXPIRE_MINUTES || 60);
+  return minutes * 60 * 1000;
+}
 
 exports.signup = asyncHandler(async (req, res) => {
   const { name, email, password, studentId } = req.body;
@@ -13,6 +27,87 @@ exports.signup = asyncHandler(async (req, res) => {
 
   const user = await User.create({ name, email, password, studentId });
   sendTokenResponse(user, 201, res);
+});
+
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '')
+    .trim()
+    .toLowerCase();
+
+  if (!email) {
+    throw new AppError('Please provide a valid email', 400);
+  }
+
+  const user = await User.findOne({ email });
+
+  if (user && !user.isBanned) {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetTokenHash = hashResetToken(resetToken);
+    user.passwordResetExpires = new Date(Date.now() + getResetTokenExpiryMs());
+    await user.save({ validateBeforeSave: false });
+
+    await sendPasswordResetEmail({ user, resetToken });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: FORGOT_PASSWORD_MESSAGE,
+  });
+});
+
+exports.validateResetToken = asyncHandler(async (req, res) => {
+  const rawToken = String(req.params.token || '').trim();
+  if (!rawToken) {
+    return res.status(200).json({ success: true, valid: false });
+  }
+
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(rawToken),
+    passwordResetExpires: { $gt: Date.now() },
+  }).select('+passwordResetTokenHash');
+
+  res.status(200).json({ success: true, valid: Boolean(user) });
+});
+
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const rawToken = String(req.body.token || '').trim();
+  const password = req.body.password;
+  const confirmPassword = req.body.confirmPassword;
+
+  if (!rawToken) {
+    throw new AppError('Invalid or expired reset link', 400);
+  }
+
+  if (!password || String(password).length < 6) {
+    throw new AppError('Password must be at least 6 characters', 400);
+  }
+
+  if (password !== confirmPassword) {
+    throw new AppError('Passwords do not match', 400);
+  }
+
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(rawToken),
+    passwordResetExpires: { $gt: Date.now() },
+  }).select('+password +passwordResetTokenHash');
+
+  if (!user) {
+    throw new AppError('Invalid or expired reset link', 400);
+  }
+
+  if (user.isBanned) {
+    throw new AppError('Your account has been banned', 403);
+  }
+
+  user.password = password;
+  user.passwordResetTokenHash = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password updated successfully. You can sign in with your new password.',
+  });
 });
 
 exports.login = asyncHandler(async (req, res) => {
@@ -34,6 +129,42 @@ exports.login = asyncHandler(async (req, res) => {
 
   user.password = undefined;
   sendTokenResponse(user, 200, res);
+});
+
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw new AppError('Current password, new password, and confirmation are required', 400);
+  }
+
+  if (String(newPassword).length < 6) {
+    throw new AppError('Password must be at least 6 characters', 400);
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw new AppError('New passwords do not match', 400);
+  }
+
+  const user = await User.findById(req.user._id).select('+password');
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw new AppError('Current password is incorrect', 401);
+  }
+
+  user.password = newPassword;
+  user.passwordResetTokenHash = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password changed successfully.',
+  });
 });
 
 exports.getMe = asyncHandler(async (req, res) => {

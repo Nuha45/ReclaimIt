@@ -13,6 +13,15 @@ export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOpt
   }).format(new Date(date));
 }
 
+/** Backend `claim_verified` for the submitter (claimer / found-report author), not the poster who accepted. */
+export function isClaimAcceptNotificationForSubmitter(notification: {
+  type: string;
+  message: string;
+}) {
+  if (notification.type !== 'claim_verified') return false;
+  return !/^you accepted/i.test(notification.message.trim());
+}
+
 export function formatRelativeTime(date: string | Date) {
   const now = Date.now();
   const then = new Date(date).getTime();

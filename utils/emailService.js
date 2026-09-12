@@ -144,6 +144,22 @@ async function sendClaimCompletedEmail({ user, item, otherName }) {
   });
 }
 
+async function sendPasswordResetEmail({ user, resetToken }) {
+  const href = clientUrl(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+  const minutes = Number(process.env.PASSWORD_RESET_EXPIRE_MINUTES || 60);
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset your ReclaimIt password',
+    text: `You requested a password reset. Open this link within ${minutes} minutes to choose a new password: ${href}\n\nIf you did not request this, you can ignore this email.`,
+    html: wrapHtml({
+      title: 'Reset your password',
+      body: `Hi ${user.name},<br/><br/>We received a request to reset your ReclaimIt password. This link expires in <strong>${minutes} minutes</strong>. If you did not request a reset, you can safely ignore this email.`,
+      ctaLabel: 'Reset password',
+      ctaHref: href,
+    }),
+  });
+}
+
 async function sendNewMessageEmail({ recipient, senderName, preview, itemId }) {
   const href = itemId ? clientUrl(`/chat?user=&item=${itemId}`) : clientUrl('/chat');
   const safePreview = String(preview || '').slice(0, 140);
@@ -167,5 +183,6 @@ module.exports = {
   sendClaimDecisionEmail,
   sendClaimCompletedEmail,
   sendNewMessageEmail,
+  sendPasswordResetEmail,
   clientUrl,
 };

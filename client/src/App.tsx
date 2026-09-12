@@ -8,6 +8,8 @@ import AdminRoute from './components/layout/AdminRoute';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import BrowsePage from './pages/BrowsePage';
 import PostItemPage from './pages/PostItemPage';
 import ItemDetailPage from './pages/ItemDetailPage';
@@ -34,6 +36,8 @@ function AppRoutes() {
         <Route path="items/:id" element={<ItemDetailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
 
         <Route path="items/:id/edit" element={<ProtectedRoute><EditItemPage /></ProtectedRoute>} />
         <Route path="post" element={<ProtectedRoute><PostItemPage /></ProtectedRoute>} />

@@ -30,11 +30,11 @@ export default function HomePage() {
             ReclaimIt
           </p>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-text-primary leading-[1.05] mb-6 max-w-3xl tracking-tight">
-            Lost on campus.<br />
-            <span className="text-accent">Found with clarity.</span>
+            Lost something? Found something?<br />
+            <span className="text-accent">Reclaim it. Return it.</span>
           </h1>
           <p className="text-lg text-text-secondary mb-10 max-w-xl leading-relaxed">
-            Post Lost or Found with proof. Finders file Found Reports; owners Claim found items. Only mark Returned when the handoff is done.
+            The simple way to report, find, and return lost belongings on campus.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link to="/browse">

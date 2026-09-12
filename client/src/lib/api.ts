@@ -85,7 +85,18 @@ export const authApi = {
     api.post<{ success: boolean; token: string; user: User }>('/auth/signup', data),
   login: (data: { email: string; password: string }) =>
     api.post<{ success: boolean; token: string; user: User }>('/auth/login', data),
+  forgotPassword: (data: { email: string }) =>
+    api.post<{ success: boolean; message: string }>('/auth/forgot-password', data),
+  validateResetToken: (token: string) =>
+    api.get<{ success: boolean; valid: boolean }>(
+      `/auth/reset-password/${encodeURIComponent(token)}/validate`,
+      { headers: { 'X-Silent-Error': '1' } }
+    ),
+  resetPassword: (data: { token: string; password: string; confirmPassword: string }) =>
+    api.post<{ success: boolean; message: string }>('/auth/reset-password', data),
   getMe: () => api.get<{ success: boolean; user: User }>('/auth/me'),
+  changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    api.put<{ success: boolean; message: string }>('/auth/change-password', data),
   updateProfile: (data: { name?: string; studentId?: string; avatar?: string }) =>
     api.put<{ success: boolean; user: User }>('/auth/profile', data),
   getSavedItems: () => api.get<{ success: boolean; items: Item[] }>('/auth/saved-items'),
