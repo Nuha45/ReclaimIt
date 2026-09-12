@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send } from 'lucide-react';
+import { ChevronLeft, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Message, User } from '../../types';
 import { messagesApi, getErrorMessage } from '../../lib/api';
-import { getInitials } from '../../lib/utils';
+import { getInitials, refUserId } from '../../lib/utils';
 import MessageBubble from './MessageBubble';
 import Button from '../ui/Button';
 import Spinner from '../ui/Spinner';
@@ -12,14 +12,16 @@ interface ChatWindowProps {
   participant: User;
   currentUserId: string;
   itemId?: string;
+  onBack?: () => void;
 }
 
-export default function ChatWindow({ participant, currentUserId, itemId }: ChatWindowProps) {
+export default function ChatWindow({ participant, currentUserId, itemId, onBack }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = async () => {
     try {
@@ -42,7 +44,6 @@ export default function ChatWindow({ participant, currentUserId, itemId }: ChatW
     };
 
     load();
-    // Poll every 15s instead of 4s to avoid rate-limit storms
     const interval = setInterval(load, 15000);
     return () => {
       cancelled = true;
@@ -74,18 +75,28 @@ export default function ChatWindow({ participant, currentUserId, itemId }: ChatW
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border-subtle">
-        <div className="w-9 h-9 rounded-xl bg-accent/20 flex items-center justify-center text-sm font-bold text-accent">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-border-subtle shrink-0">
+        {onBack && (
+          <Button type="button" variant="ghost" size="sm" className="!p-2 md:hidden shrink-0" onClick={onBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        )}
+        <div className="w-9 h-9 rounded-xl bg-accent/20 flex items-center justify-center text-sm font-bold text-accent shrink-0">
           {getInitials(participant.name)}
         </div>
-        <div>
-          <p className="font-medium text-text-primary">{participant.name}</p>
-          <p className="text-xs text-text-muted">{participant.email}</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-text-primary truncate">{participant.name}</p>
+          {participant.email ? (
+            <p className="text-xs text-text-muted truncate">{participant.email}</p>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4 space-y-3"
+      >
         {loading ? (
           <Spinner className="py-10" />
         ) : messages.length === 0 ? (
@@ -95,21 +106,30 @@ export default function ChatWindow({ participant, currentUserId, itemId }: ChatW
             <MessageBubble
               key={msg._id}
               message={msg}
-              isOwn={msg.sender._id === currentUserId}
+              isOwn={refUserId(msg.sender) === currentUserId}
             />
           ))
         )}
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={handleSend} className="flex gap-3 px-5 py-4 border-t border-border-subtle">
+      <form
+        onSubmit={handleSend}
+        className="flex gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-t border-border-subtle shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-surface-raised"
+      >
         <input
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 px-4 py-2.5 bg-surface-overlay border border-border rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+          enterKeyHint="send"
+          className="flex-1 min-w-0 px-4 py-2.5 text-base sm:text-sm bg-surface-overlay border border-border rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/40 min-h-[44px]"
         />
-        <Button type="submit" loading={sending} disabled={!content.trim()}>
+        <Button
+          type="submit"
+          loading={sending}
+          disabled={!content.trim()}
+          className="shrink-0 min-h-[44px] min-w-[44px] !px-3"
+        >
           <Send className="w-4 h-4" />
         </Button>
       </form>

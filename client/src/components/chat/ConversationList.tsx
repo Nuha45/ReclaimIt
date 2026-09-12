@@ -32,11 +32,15 @@ export default function ConversationList({ conversations, activeUserId, onSelect
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-text-primary truncate">{participant.name}</span>
-              <span className="text-[10px] text-text-muted flex-shrink-0">
-                {formatRelativeTime(lastMessage.createdAt)}
-              </span>
+              {lastMessage?.createdAt && (
+                <span className="text-[10px] text-text-muted flex-shrink-0">
+                  {formatRelativeTime(lastMessage.createdAt)}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-text-secondary truncate mt-0.5">{lastMessage.content}</p>
+            <p className="text-xs text-text-secondary truncate mt-0.5">
+              {lastMessage?.content || 'No messages yet'}
+            </p>
           </div>
           {unreadCount > 0 && (
             <span className="w-5 h-5 bg-accent text-surface text-[10px] font-bold rounded-full flex items-center justify-center flex-shrink-0">

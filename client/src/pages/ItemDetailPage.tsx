@@ -5,6 +5,7 @@ import {
   ChevronLeft, Zap, Bookmark, ShieldCheck, Star, Pencil, Clock, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 import { authApi, claimsApi, itemsApi, reviewsApi, violationsApi, getErrorMessage } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { ClaimRequest, Item } from '../types';
@@ -18,7 +19,10 @@ import {
   getMatchLabel,
   getItemActionCopy,
   isClaimAcceptNotificationForSubmitter,
+  refUserId,
+  claimItemRef,
 } from '../lib/utils';
+import EmptyState from '../components/ui/EmptyState';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
@@ -40,6 +44,7 @@ export default function ItemDetailPage() {
   const [myClaim, setMyClaim] = useState<ClaimRequest | null>(null);
   const [matches, setMatches] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<'not-found' | 'error' | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
@@ -62,31 +67,37 @@ export default function ItemDetailPage() {
 
   const refresh = async () => {
     if (!id) return null;
-    const [itemRes, matchRes] = await Promise.all([
-      itemsApi.getById(id),
-      itemsApi.getMatches(id),
-    ]);
+    const itemRes = await itemsApi.getById(id);
     setItem(itemRes.data.item);
-    setMatches(matchRes.data.matches);
     setClaims(itemRes.data.claimRequests || []);
     setPendingClaims(itemRes.data.pendingClaims || 0);
     setMyClaim(itemRes.data.myClaim || null);
+    setLoadError(null);
+
+    itemsApi
+      .getMatches(id)
+      .then((matchRes) => setMatches(matchRes.data.matches))
+      .catch(() => setMatches([]));
+
     if (isAuthenticated) {
-      const [savedRes, pendingReviews] = await Promise.all([
-        authApi.getSavedItems(),
-        reviewsApi.getPending().catch(() => ({ data: { pending: [] } })),
-      ]);
-      setSaved(savedRes.data.items.some((savedItem) => savedItem._id === itemRes.data.item._id));
-      const ids = new Set(
-        pendingReviews.data.pending
-          .filter((entry) => {
-            const claimItem = entry.claim.item;
-            const claimItemId = typeof claimItem === 'object' ? claimItem._id : claimItem;
-            return claimItemId === id;
-          })
-          .map((entry) => entry.claim._id)
-      );
-      setNeedsReviewClaimIds(ids);
+      authApi
+        .getSavedItems()
+        .then((savedRes) => {
+          setSaved(savedRes.data.items.some((savedItem) => savedItem._id === itemRes.data.item._id));
+        })
+        .catch(() => {});
+
+      reviewsApi
+        .getPending()
+        .then((pendingReviews) => {
+          const ids = new Set(
+            pendingReviews.data.pending
+              .filter((entry) => claimItemRef(entry.claim?.item as Item | string | null).id === id)
+              .map((entry) => entry.claim._id)
+          );
+          setNeedsReviewClaimIds(ids);
+        })
+        .catch(() => setNeedsReviewClaimIds(new Set()));
     }
     return itemRes.data;
   };
@@ -94,15 +105,24 @@ export default function ItemDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    setLoadError(null);
     refresh()
-      .catch(() => navigate('/browse'))
+      .catch((err) => {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          setItem(null);
+          setLoadError('not-found');
+        } else {
+          setLoadError('error');
+          toast.error(getErrorMessage(err));
+        }
+      })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isAuthenticated, navigate]);
+  }, [id, isAuthenticated]);
 
   useEffect(() => {
     if (!item || !myClaim || !user || !isAuthenticated) return;
-    if (user._id === item.postedBy._id) return;
+    if (refUserId(item.postedBy) === user._id) return;
     if (myClaim.status !== 'pending') return;
 
     const interval = setInterval(() => {
@@ -114,7 +134,7 @@ export default function ItemDetailPage() {
 
   useEffect(() => {
     if (!item || !myClaim || !user || !isAuthenticated) return;
-    if (user._id === item.postedBy._id) return;
+    if (refUserId(item.postedBy) === user._id) return;
 
     const pendingReturnKey = `pending-return-${myClaim._id}`;
     const handoffDone = item.status === 'resolved' || myClaim.status === 'completed';
@@ -155,9 +175,57 @@ export default function ItemDetailPage() {
     );
   }
 
-  if (!item) return null;
+  if (loadError === 'not-found' || !item) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-w-0">
+        <EmptyState
+          icon={Search}
+          title="Item not found"
+          description="This listing may have been removed or the link is no longer valid."
+          action={
+            <Link to="/browse">
+              <Button>Browse campus finds</Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
 
-  const isOwner = user?._id === item.postedBy._id;
+  if (loadError === 'error') {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-w-0">
+        <EmptyState
+          icon={Search}
+          title="Could not load this item"
+          description="Check your connection and try again."
+          action={
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setLoadError(null);
+                refresh()
+                  .catch((err) => {
+                    if (axios.isAxiosError(err) && err.response?.status === 404) {
+                      setItem(null);
+                      setLoadError('not-found');
+                    } else {
+                      setLoadError('error');
+                      toast.error(getErrorMessage(err));
+                    }
+                  })
+                  .finally(() => setLoading(false));
+              }}
+            >
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const isOwner = user?._id === refUserId(item.postedBy);
   const images = item.images?.length ? item.images : [null];
   const visibleClaimQuestions = item.verificationQuestions || [];
   const displayStatus = getDisplayStatus(item, pendingClaims);
@@ -219,7 +287,7 @@ export default function ItemDetailPage() {
 
   const handleMessage = async () => {
     if (!isAuthenticated) { navigate('/login'); return; }
-    navigate(`/chat?user=${item.postedBy._id}&item=${item._id}`);
+    navigate(`/chat?user=${refUserId(item.postedBy)}&item=${item._id}`);
   };
 
   const handleToggleSave = async () => {
@@ -242,7 +310,7 @@ export default function ItemDetailPage() {
       const { data } = await claimsApi.review(claimId, { status });
       if (status === 'accepted') {
         toast.success(isLost ? 'Found Report Accepted — opening chat' : 'Claim Accepted — opening chat');
-        navigate(`/chat?user=${data.claim.claimer._id}&item=${item._id}`);
+        navigate(`/chat?user=${refUserId(data.claim.claimer)}&item=${item._id}`);
       } else if (status === 'rejected') {
         toast.success(isLost ? 'Found Report Rejected' : 'Claim Rejected');
       } else if (status === 'completed') {
@@ -265,7 +333,7 @@ export default function ItemDetailPage() {
     setActionLoading(true);
     try {
       await violationsApi.report({
-        reportedUserId: item.postedBy._id,
+        reportedUserId: refUserId(item.postedBy)!,
         itemId: item._id,
         reason: reportReason,
         description: reportDesc,
@@ -280,7 +348,7 @@ export default function ItemDetailPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-w-0 overflow-x-hidden">
       <Link to="/browse" className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent mb-6 transition-colors">
         <ChevronLeft className="w-4 h-4" /> Back to browse
       </Link>
@@ -376,7 +444,7 @@ export default function ItemDetailPage() {
                       <button
                         type="button"
                         className="text-accent underline cursor-pointer"
-                        onClick={() => navigate(`/chat?user=${item.postedBy._id}&item=${item._id}`)}
+                        onClick={() => navigate(`/chat?user=${refUserId(item.postedBy)}&item=${item._id}`)}
                       >
                         Open chat
                       </button>
@@ -527,7 +595,7 @@ export default function ItemDetailPage() {
                       <Button loading={actionLoading} onClick={() => handleClaimReview(claim._id, 'completed')}>
                         Mark Returned
                       </Button>
-                      <Button variant="secondary" onClick={() => navigate(`/chat?user=${claim.claimer._id}&item=${item._id}`)}>
+                      <Button variant="secondary" onClick={() => navigate(`/chat?user=${refUserId(claim.claimer)}&item=${item._id}`)}>
                         Open Chat
                       </Button>
                     </div>

@@ -90,8 +90,13 @@ export default function ProfilePage() {
         setSavedItems(savedRes.data.items);
         setSearches(searchRes.data.searches);
         setNotifications(notifRes.data.notifications);
-        setMyReviews(reviewsRes.data.reviews);
-        setPendingReviews(pendingRes.data.pending);
+        setMyReviews(reviewsRes.data.reviews ?? []);
+        setPendingReviews(
+          (pendingRes.data.pending ?? []).filter((entry) => entry.reviewee?._id && entry.claim?._id)
+        );
+      })
+      .catch(() => {
+        toast.error('Some profile data could not be loaded. Pull to refresh by reopening this page.');
       })
       .finally(() => setLoading(false));
   }, [user?._id]);
